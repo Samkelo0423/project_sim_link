@@ -83,7 +83,7 @@ class ProcessFlowEditor(QMainWindow):
             col = i % num_columns
             label = DraggableImageLabel(path)
             label.setFixedSize(image_width, image_height)
-            label.setStyleSheet("border: 5px solid gray;")
+            label.setStyleSheet("border: 2px solid black; border-radius : 0px")
             tool_palette_layout.addWidget(label, row, col)
 
         tool_palette.setLayout(tool_palette_layout)
