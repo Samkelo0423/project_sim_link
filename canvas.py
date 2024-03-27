@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import QFrame, QLabel
-from PyQt5.QtCore import QPoint, Qt 
+from PyQt5.QtCore import QPoint, Qt, QSize
 from PyQt5.QtGui import QPixmap
 
 class Canvas(QFrame):
@@ -13,13 +13,13 @@ class Canvas(QFrame):
             event.acceptProposedAction()
 
     def dropEvent(self, event):
+
         if event.mimeData().hasFormat("image/png"):
             byte_array = event.mimeData().data("image/png")
             image = QPixmap()
             image.loadFromData(byte_array)
             image_label = QLabel(self)
             image_label.setPixmap(image)
-
             image_label.setStyleSheet("border: 2px solid black; border-radius : 0px ;")
 
             position = event.pos() - QPoint(
@@ -34,11 +34,12 @@ class Canvas(QFrame):
                 "size": image.size(),
                 "resizing": False,
                 "resizing_offset": QPoint(),
-                "resize_corner": None
+                "resize_corner": None,
+                "pixmap": image
             }
 
     def mousePressEvent(self, event):
-        
+
         for image_label, properties in self.current_images.items():
             if image_label.geometry().contains(event.pos()):
                 # Reset resizing status and offset
@@ -66,40 +67,30 @@ class Canvas(QFrame):
                         properties["resize_corner"] = corner_name
 
     def mouseMoveEvent(self, event):
+      for image_label, properties in self.current_images.items():
+        if event.buttons() == Qt.LeftButton and image_label.geometry().contains(event.pos()):
+            if not properties["resizing"]:
+                # Move the image label if not resizing
+                image_label.move(event.pos() - properties["current_image_offset"])
+            else:
+                # Resize the image label if resizing
+                new_size = (properties["size"] + QSize(event.pos().x() - properties["position"].x() - properties["resizing_offset"].x(), event.pos().y() - properties["position"].y() - properties["resizing_offset"].y())).expandedTo(QSize(1, 1))
 
-        for image_label, properties in self.current_images.items():
+                # Adjust position and size for diagonal resizing
+                if properties["resize_corner"] in ["top_left", "bottom_right"]:
+                    new_position = QPoint(min(properties["position"].x(), event.pos().x()), min(properties["position"].y(), event.pos().y()))
+                elif properties["resize_corner"] in ["top_right", "bottom_left"]:
+                    new_position = QPoint(max(properties["position"].x(), event.pos().x()), max(properties["position"].y(), event.pos().y()))
 
-            if event.buttons() == Qt.LeftButton and image_label.geometry().contains(event.pos()):
-                if not properties["resizing"]:
-                    # Move the image label if not resizing
-                    image_label.move(event.pos() - properties["current_image_offset"])
-                else:
-                    # Resize the image label if resizing
-                    position = event.pos() + properties["resizing_offset"]
+                # Resize and move the image label
+                image_label.setGeometry(
+                    new_position.x(),
+                    new_position.y(),
+                    new_size.width(),
+                    new_size.height()
+                )
 
-                    # Calculate the new width and height
-                    new_width = abs(properties["position"].x() - position.x())
-                    new_height = abs(properties["position"].y() - position.y())
-
-                    # Adjust position and size for diagonal resizing
-                    if properties["resize_corner"] in ["top_left", "bottom_right"]:
-
-                        position.setX(min(properties["position"].x(), position.x()))
-                        position.setY(min(properties["position"].y(), position.y()))
-
-                    elif properties["resize_corner"] in ["top_right", "bottom_left"]:
-
-                        position.setX(max(properties["position"].x(), position.x()))
-                        position.setY(min(properties["position"].y(), position.y()))
-
-                    # Resize and move the image label
-                    image_label.setGeometry(
-
-                        position.x(),
-                        position.y(),
-                        new_width,
-                        new_height
-                    )
+                image_label.setPixmap(properties["pixmap"].scaled(new_size, Qt.KeepAspectRatio, Qt.SmoothTransformation))
 
     def mouseReleaseEvent(self, event):
         for image_label, properties in self.current_images.items():
