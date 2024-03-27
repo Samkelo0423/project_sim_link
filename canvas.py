@@ -2,11 +2,15 @@ from PyQt5.QtWidgets import QFrame, QLabel
 from PyQt5.QtCore import QPoint, Qt, QSize
 from PyQt5.QtGui import QPixmap
 
+
 class Canvas(QFrame):
     def __init__(self):
         super().__init__()
+        
         self.setAcceptDrops(True)
-        self.current_images = {}  # Dictionary to track images being moved {QLabel: {"position": QPoint, "size": QSize, "resizing": bool, "resizing_offset": QPoint, "resize_corner": str}}
+        self.current_images = (
+            {}
+        )  # Dictionary to track images being moved {QLabel: {"position": QPoint, "size": QSize, "resizing": bool, "resizing_offset": QPoint, "resize_corner": str}}
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasFormat("image/png"):
@@ -35,7 +39,7 @@ class Canvas(QFrame):
                 "resizing": False,
                 "resizing_offset": QPoint(),
                 "resize_corner": None,
-                "pixmap": image
+                "pixmap": image,
             }
 
     def mousePressEvent(self, event):
@@ -46,7 +50,9 @@ class Canvas(QFrame):
                 properties["resizing"] = False
                 properties["resizing_offset"] = QPoint()
                 # Calculate the offset for dragging
-                properties["current_image_offset"] = event.pos() - properties["position"]
+                properties["current_image_offset"] = (
+                    event.pos() - properties["position"]
+                )
 
                 # Check if resizing is requested
                 position = properties["position"]
@@ -60,37 +66,94 @@ class Canvas(QFrame):
                 ]
                 for corner, corner_name in corners:
                     # Check if the mouse press is on a corner for resizing
-                    if abs(corner.x() - event.pos().x()) <= 8 and abs(corner.y() - event.pos().y()) <= 8:
+                    if (
+                        abs(corner.x() - event.pos().x()) <= 8
+                        and abs(corner.y() - event.pos().y()) <= 8
+                    ):
 
                         properties["resizing"] = True
                         properties["resizing_offset"] = corner - event.pos()
                         properties["resize_corner"] = corner_name
 
     def mouseMoveEvent(self, event):
-      for image_label, properties in self.current_images.items():
-        if event.buttons() == Qt.LeftButton and image_label.geometry().contains(event.pos()):
-            if not properties["resizing"]:
-                # Move the image label if not resizing
-                image_label.move(event.pos() - properties["current_image_offset"])
-            else:
-                # Resize the image label if resizing
-                new_size = (properties["size"] + QSize(event.pos().x() - properties["position"].x() - properties["resizing_offset"].x(), event.pos().y() - properties["position"].y() - properties["resizing_offset"].y())).expandedTo(QSize(1, 1))
+        min_size = QSize(20, 20)
+        max_size = QSize(1000, 1000)
 
-                # Adjust position and size for diagonal resizing
-                if properties["resize_corner"] in ["top_left", "bottom_right"]:
-                    new_position = QPoint(min(properties["position"].x(), event.pos().x()), min(properties["position"].y(), event.pos().y()))
-                elif properties["resize_corner"] in ["top_right", "bottom_left"]:
-                    new_position = QPoint(max(properties["position"].x(), event.pos().x()), max(properties["position"].y(), event.pos().y()))
+        for image_label, properties in self.current_images.items():
 
-                # Resize and move the image label
-                image_label.setGeometry(
-                    new_position.x(),
-                    new_position.y(),
-                    new_size.width(),
-                    new_size.height()
-                )
+            if event.buttons() == Qt.LeftButton and image_label.geometry().contains(
+                event.pos()
+            ):
 
-                image_label.setPixmap(properties["pixmap"].scaled(new_size, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+                if properties["resizing"]:
+                    new_size = (
+                        properties["size"]
+                        + QSize(
+                            event.pos().x()
+                            - properties["position"].x()
+                            - properties["resizing_offset"].x(),
+                            event.pos().y()
+                            - properties["position"].y()
+                            - properties["resizing_offset"].y(),
+                        )
+                    ).expandedTo(min_size)
+
+                    if (
+                        new_size.width() > properties["size"].width()
+                        or  new_size.height() > properties["size"].height()
+                    ):
+                        new_size = new_size.boundedTo(max_size)
+
+                    if event. modifiers() & Qt.ControlModifier:
+
+                        new_size.setHeight(
+
+                           new_size.setHeight(
+                               
+                               event.pos().y()
+                            - properties["position"].y()
+                            - properties["resizing_offset"].y()
+
+                            ))
+                        
+                    elif  event.modifiers() & Qt.ShiftModifier:
+                        new_size.setWidth(
+
+                            event.pos().x()
+                            -properties["position"].x()
+                            - properties["resizing_offset"].x()
+
+                            )
+                    else:
+                        pass
+
+                    if properties["resize_corner"] in ["top_left", "bottom_right"]:
+                        new_position = QPoint(
+                            min(properties["position"].x(), event.pos().x()),
+                            min(properties["position"].y(), event.pos().y()),
+                        )
+                    elif properties["resize_corner"] in ["top_right", "bottom_left"]:
+                        new_position = QPoint(
+                            max(properties["position"].x(), event.pos().x()),
+                            max(properties["position"].y(), event.pos().y()),
+                        )
+
+                    image_label.setGeometry(
+                        new_position.x(),
+                        new_position.y(),
+                        new_size.width(),
+                        new_size.height()
+                    )
+
+                    image_label.setPixmap(
+
+                        properties["pixmap"].scaled(
+                            new_size, Qt.KeepAspectRatio, Qt.SmoothTransformation
+                        )
+                    )
+                else:
+
+                    image_label.move(event.pos() - properties["current_image_offset"])
 
     def mouseReleaseEvent(self, event):
         for image_label, properties in self.current_images.items():
@@ -99,5 +162,3 @@ class Canvas(QFrame):
                 properties["position"] = image_label.pos()
                 properties["size"] = image_label.size()
                 properties["resizing"] = False
-
-
