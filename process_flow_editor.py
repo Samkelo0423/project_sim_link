@@ -1,8 +1,16 @@
-from PyQt5.QtWidgets import QMainWindow, QAction, QWidget, QHBoxLayout, QFrame , QGridLayout
+import sys
+from PyQt5.QtWidgets import (
+    QMainWindow,
+    QAction,
+    QWidget,
+    QHBoxLayout,
+    QFrame,
+    QGridLayout,
+    QApplication
+)
 from PyQt5.QtCore import Qt
 from draggable_image_label import DraggableImageLabel
 from canvas import Canvas
-
 
 
 class ProcessFlowEditor(QMainWindow):
@@ -13,6 +21,8 @@ class ProcessFlowEditor(QMainWindow):
     def initUI(self):
         self.setWindowTitle("Mineral Processing Flow Editor")
         self.setGeometry(100, 100, 1600, 900)
+
+        self.setFixedSize(1600 , 900)
 
         # Create actions for menu items
         new_action = QAction("&New", self)
@@ -37,15 +47,21 @@ class ProcessFlowEditor(QMainWindow):
         self.setupMainLayout(central_widget)
 
     def setupMainLayout(self, central_widget):
+
         # Create the main layout
         main_layout = QHBoxLayout()
 
+        tool_palette = self.createToolPalette()
+        canvas = self.createCanvas()
+
+
         # Add tool palette and canvas to main layout with stretch factor
-        main_layout.addWidget(self.createToolPalette(), 1)
-        main_layout.addWidget(self.createCanvas(), 5)
+        main_layout.addWidget(tool_palette, 1)
+        main_layout.addWidget(canvas, 5)
 
         # Set main layout for central widget
         central_widget.setLayout(main_layout)
+
 
     def createToolPalette(self):
         # Create tool palette frame
@@ -62,6 +78,7 @@ class ProcessFlowEditor(QMainWindow):
         tool_palette_layout = (
             QGridLayout()
         )  # Use QGridLayout to organize images in rows and columns
+
         tool_palette_layout.setAlignment(Qt.AlignTop)
         # Add draggable images to the tool palette
         image_paths = [
@@ -74,6 +91,7 @@ class ProcessFlowEditor(QMainWindow):
             "jaw_crusher.png",
             "ball_mill.png",
         ]  # Paths to your images
+
         num_columns = 4  # Number of columns for the tool palette
         image_width = 60
         image_height = 60
@@ -89,14 +107,14 @@ class ProcessFlowEditor(QMainWindow):
         tool_palette.setLayout(tool_palette_layout)
 
         return tool_palette
+    
     def createCanvas(self):
-        # Create canvas frame
-        canvas = Canvas()
 
+        canvas = Canvas()
         # Set frame properties
         canvas.setFrameShape(QFrame.Box)
-        canvas.setStyleSheet("background-color: lightgray; border-radius: 10px;")
+        canvas.setStyleSheet("background-color: lightgray; border-radius: 0px;")
+        canvas.showGrid(True)
+        canvas.show()
 
         return canvas
-    
-    

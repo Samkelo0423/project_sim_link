@@ -1,16 +1,19 @@
 from PyQt5.QtWidgets import QFrame, QLabel
 from PyQt5.QtCore import QPoint, Qt, QSize
-from PyQt5.QtGui import QPixmap
+from PyQt5.QtGui import QPixmap, QPainter, QColor
 
 
 class Canvas(QFrame):
+
     def __init__(self):
         super().__init__()
-        
         self.setAcceptDrops(True)
-        self.current_images = (
-            {}
-        )  # Dictionary to track images being moved {QLabel: {"position": QPoint, "size": QSize, "resizing": bool, "resizing_offset": QPoint, "resize_corner": str}}
+        self.current_images = {}
+        self.gridVisible = False
+
+    def showGrid(self, visible):
+        self.gridVisible = visible
+        self.update()
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasFormat("image/png"):
@@ -32,7 +35,6 @@ class Canvas(QFrame):
             image_label.move(position)
             image_label.show()
 
-            # Store image properties in the dictionary
             self.current_images[image_label] = {
                 "position": position,
                 "size": image.size(),
@@ -43,18 +45,14 @@ class Canvas(QFrame):
             }
 
     def mousePressEvent(self, event):
-
         for image_label, properties in self.current_images.items():
             if image_label.geometry().contains(event.pos()):
-                # Reset resizing status and offset
                 properties["resizing"] = False
                 properties["resizing_offset"] = QPoint()
-                # Calculate the offset for dragging
                 properties["current_image_offset"] = (
                     event.pos() - properties["position"]
                 )
 
-                # Check if resizing is requested
                 position = properties["position"]
                 size = properties["size"]
 
@@ -65,12 +63,10 @@ class Canvas(QFrame):
                     (position + QPoint(size.width(), size.height()), "bottom_right"),
                 ]
                 for corner, corner_name in corners:
-                    # Check if the mouse press is on a corner for resizing
                     if (
                         abs(corner.x() - event.pos().x()) <= 8
                         and abs(corner.y() - event.pos().y()) <= 8
                     ):
-
                         properties["resizing"] = True
                         properties["resizing_offset"] = corner - event.pos()
                         properties["resize_corner"] = corner_name
@@ -80,50 +76,37 @@ class Canvas(QFrame):
         max_size = QSize(1000, 1000)
 
         for image_label, properties in self.current_images.items():
-
             if event.buttons() == Qt.LeftButton and image_label.geometry().contains(
                 event.pos()
             ):
-
                 if properties["resizing"]:
-                    new_size = (
-                        properties["size"]
-                        + QSize(
-                            event.pos().x()
-                            - properties["position"].x()
-                            - properties["resizing_offset"].x(),
-                            event.pos().y()
-                            - properties["position"].y()
-                            - properties["resizing_offset"].y(),
-                        )
+                    new_size = properties["size"] + QSize(
+                        event.pos().x()
+                        - properties["position"].x()
+                        - properties["resizing_offset"].x(),
+                        event.pos().y()
+                        - properties["position"].y()
+                        - properties["resizing_offset"].y(),
                     ).expandedTo(min_size)
 
                     if (
                         new_size.width() > properties["size"].width()
-                        or  new_size.height() > properties["size"].height()
+                        or new_size.height() > properties["size"].height()
                     ):
                         new_size = new_size.boundedTo(max_size)
 
-                    if event. modifiers() & Qt.ControlModifier:
-
+                    if event.modifiers() & Qt.ControlModifier:
                         new_size.setHeight(
-
-                           new_size.setHeight(
-                               
-                               event.pos().y()
+                            event.pos().y()
                             - properties["position"].y()
                             - properties["resizing_offset"].y()
-
-                            ))
-                        
-                    elif  event.modifiers() & Qt.ShiftModifier:
+                        )
+                    elif event.modifiers() & Qt.ShiftModifier:
                         new_size.setWidth(
-
                             event.pos().x()
-                            -properties["position"].x()
+                            - properties["position"].x()
                             - properties["resizing_offset"].x()
-
-                            )
+                        )
                     else:
                         pass
 
@@ -142,23 +125,45 @@ class Canvas(QFrame):
                         new_position.x(),
                         new_position.y(),
                         new_size.width(),
-                        new_size.height()
+                        new_size.height(),
                     )
-
                     image_label.setPixmap(
-
                         properties["pixmap"].scaled(
                             new_size, Qt.KeepAspectRatio, Qt.SmoothTransformation
                         )
                     )
                 else:
-
                     image_label.move(event.pos() - properties["current_image_offset"])
 
     def mouseReleaseEvent(self, event):
         for image_label, properties in self.current_images.items():
             if event.button() == Qt.LeftButton:
-                # Update image properties upon release
                 properties["position"] = image_label.pos()
                 properties["size"] = image_label.size()
                 properties["resizing"] = False
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if self.gridVisible:
+            painter = QPainter(self)
+            self.drawGrid(painter)
+
+    def drawGrid(self, painter):
+
+        grid_color = QColor(60, 70, 80)
+        grid_opacity = 0.7
+        start_x = 0
+        start_y = 0
+        grid_spacing = 20
+
+        painter.save()
+        painter.setPen(grid_color.lighter(90))
+        painter.setOpacity(grid_opacity)
+
+        for x in range(start_x, self.width(), grid_spacing):
+            painter.drawLine(x, 0, x, self.height())
+
+        for y in range(start_y, self.height(), grid_spacing):
+            painter.drawLine(0, y, self.width(), y)
+
+        painter.restore()
