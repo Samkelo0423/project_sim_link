@@ -114,7 +114,6 @@ class ProcessFlowEditor(QMainWindow):
         # Set frame properties
         canvas.setFrameShape(QFrame.Box)
         canvas.setStyleSheet("background-color: lightgray; border-radius: 0px;")
-        canvas.showGrid(True)
         canvas.show()
 
         return canvas
