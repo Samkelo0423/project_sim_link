@@ -5,6 +5,7 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
 )
+from PyQt5.QtGui import QGuiApplication, QPixmap
 from PyQt5.QtCore import Qt, QPoint, QRect, QEvent
 from PyQt5.QtGui import QPixmap, QPainter, QColor, QCursor
 
@@ -22,6 +23,11 @@ class Canvas(QFrame):
         self.active_image = None  # Currently selected image label
         self.scaleFactor = 1.0  # Zoom level
         self.gridVisible = True  # Flag to control grid visibility
+
+        #Get screen size for dynamic scaling 
+        screen = QGuiApplication.primaryScreen().availableGeometry()
+        self.screen_width = screen.width()
+        self.screen_height = screen.height()
 
     def setupUI(self):
         """
@@ -44,18 +50,23 @@ class Canvas(QFrame):
         """
         Utility method to create buttons.
         """
+        # Get the primary screen size to position buttons
+        screen = QGuiApplication.primaryScreen()
+        screen_size = screen.availableGeometry()
+        screen_width = screen_size.width()
+        screen_height = screen_size.height()
+
+        # Create a button with specified text and handler
+        button_with = int(screen_width * 0.04)  # Button width as % of screen width
+        button_height = int(screen_height * 0.035)  # Button height as % of screen height
+
         button = QPushButton(text)
-        button.setFixedSize(60, 30)
+        button.setFixedSize(button_with, button_height)
         button.clicked.connect(handler)
         button.setStyleSheet("border: 2px solid black; background-color: white;")
         return button
 
-    def dragEnterEvent(self, event):
-        """
-        Handles drag enter event to accept image drops.
-        """
-        if event.mimeData().hasFormat("image/png"):
-            event.acceptProposedAction()
+    
 
     def dropEvent(self, event):
         """
@@ -65,25 +76,68 @@ class Canvas(QFrame):
         """
         if event.mimeData().hasFormat("image/png"):
             byte_array = event.mimeData().data("image/png")
-            image = QPixmap()
-            image.loadFromData(byte_array)
+            
+            #Load the original image from the byte array
+            original_pixmap = QPixmap()
+            original_pixmap.loadFromData(byte_array)
 
-            position = event.pos() - QPoint(int(image.width() / 2), int(image.height() / 2))
-
+            #Creat label and show it
             image_label = QLabel(self)
-            image_label.setPixmap(image)
-            self.set_image_border_color(image_label, QColor("black"))  # Set the default border color
-            image_label.move(position)
-            image_label.show()
+            image_label.setPixmap(original_pixmap)
+            self.set_image_border_color(image_label, QColor("black"))  # Set initial border color
 
+            #Add to images dict first
             self.images[image_label] = {
-                "position": position,
-                "size": image.size(),
-                "resizing": False,
+                "pixmap": original_pixmap,
+                "size": original_pixmap.size(),
+                "position": event.pos(),
                 "resizing_offset": QPoint(),
+                "resizing": False,
                 "resize_corner": None,
-                "pixmap": image,
             }
+
+            # Resize the image immediately (e.g., to a %)
+
+            self.resizeImageAtDropEvent(image_label, 0.5)  # Resize to 50% of original size
+
+            # Center it based on new size
+            new_size = self.images[image_label]["size"]
+            position = event.pos() - QPoint(new_size.width() // 2, new_size.height() // 2)
+            image_label.move(position)
+
+            #update position in metadata
+            self.images[image_label]["position"] = position
+
+            image_label.show()  # Show the image label
+    
+    def resizeImageAtDropEvent(self, image_label, scale_factor):
+        """
+        Resizes the image label based on the scale factor.
+        """
+        if image_label in self.images:
+            data = self.images[image_label]
+            original_pixmap = data["pixmap"]
+
+            new_width = int(original_pixmap.width() * scale_factor)
+            new_height = int(original_pixmap.height() * scale_factor)
+
+            scaled_pixmap = original_pixmap.scaled(new_width, 
+                                                   new_height, 
+                                                   Qt.KeepAspectRatio, 
+                                                   Qt.SmoothTransformation)
+            image_label.setPixmap(scaled_pixmap)
+            image_label.resize(scaled_pixmap.size())    
+            data["size"] = scaled_pixmap.size()  # Update size in metadata
+
+    def set_image_border_color(self, label, color):
+        label.setStyleSheet(f"border: 2px solid {color.name()};")
+
+    def dragEnterEvent(self, event):
+        """
+        Handles drag enter event to accept image drops.
+        """
+        if event.mimeData().hasFormat("image/png"):
+            event.acceptProposedAction()
 
     def createImageLabel(self, pixmap, position):
         """
@@ -104,6 +158,8 @@ class Canvas(QFrame):
         """
         for image_label in self.images:
             if image_label.geometry().contains(event.pos()):
+
+                
                 if event.button() == Qt.RightButton:
                     self.showDeleteButton(event, image_label)  # Show delete button on right-click
                     return

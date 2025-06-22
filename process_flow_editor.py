@@ -1,4 +1,3 @@
-import sys
 from PyQt5.QtWidgets import (
     QMainWindow,
     QAction,
@@ -20,9 +19,19 @@ class ProcessFlowEditor(QMainWindow):
 
     def initUI(self):
         self.setWindowTitle("Mineral Processing Flow Editor")
-        self.setGeometry(100, 100, 1600, 900)
+        
+        #Getting primary screen size
+        screen = QApplication.primaryScreen()
+        screen_size = screen.availableGeometry()
+        screen_width = screen_size.width()
+        screen_height = screen_size.height()
 
-        self.setFixedSize(1600 , 900)
+        # Set the window size relative to the screen size
+        self.setGeometry( 100,
+                          100, 
+                          int(screen_width * 0.70), 
+                          int(screen_height * 0.70))
+        self.setMinimumSize(800, 600)
 
         # Create actions for menu items
         new_action = QAction("&New", self)
@@ -65,7 +74,12 @@ class ProcessFlowEditor(QMainWindow):
 
     def createToolPalette(self):
         # Create tool palette frame
+        screen = QApplication.primaryScreen()
+        screen_size = screen.availableGeometry()
+        screen_width = screen_size.width()
+        screen_height = screen_size.height()
         tool_palette = QFrame()
+
 
         # Set frame properties
         tool_palette.setFrameShape(QFrame.Box)  # Set frame shape to a box
@@ -92,9 +106,11 @@ class ProcessFlowEditor(QMainWindow):
             "ball_mill.png",
         ]  # Paths to your images
 
+        
+
         num_columns = 4  # Number of columns for the tool palette
-        image_width = 60
-        image_height = 60
+        image_width = int(60 * 0.80)
+        image_height = int(60 * 0.80)
 
         for i, path in enumerate(image_paths):
             row = i // num_columns
