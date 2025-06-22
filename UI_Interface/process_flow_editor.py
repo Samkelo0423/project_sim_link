@@ -75,12 +75,7 @@ class ProcessFlowEditor(QMainWindow):
 
     def createToolPalette(self):
         # Create tool palette frame
-        screen = QApplication.primaryScreen()
-        screen_size = screen.availableGeometry()
-        screen_width = screen_size.width()
-        screen_height = screen_size.height()
         tool_palette = QFrame()
-
 
         # Set frame properties
         tool_palette.setFrameShape(QFrame.Box)  # Set frame shape to a box
@@ -92,24 +87,19 @@ class ProcessFlowEditor(QMainWindow):
         # Add images to the tool palette
         tool_palette_layout = (
             QGridLayout()
-        )  # Use QGridLayout to organize images in rows and columns
+        ) 
 
         tool_palette_layout.setAlignment(Qt.AlignTop)
         # Use relative paths for images
         base_dir = os.path.dirname(__file__)
         image_dir = os.path.abspath(os.path.join(base_dir, "..", "Image_Icons"))
-        image_paths = [
-            os.path.join(image_dir, "ball_mill.png"),
-            os.path.join(image_dir, "ball_mill.png"),
-            os.path.join(image_dir, "jaw_crusher.png"),
-            os.path.join(image_dir, "ball_mill.png"),
-            os.path.join(image_dir, "jaw_crusher.png"),
-            os.path.join(image_dir, "ball_mill.png"),
-            os.path.join(image_dir, "jaw_crusher.png"),
-            os.path.join(image_dir, "ball_mill.png"),
-            os.path.join(image_dir, "jaw_crusher.png"),
-        ] # Paths to your images
+        
+        image_files = [
 
+            f for f in os.listdir(image_dir) 
+            if f.endswith(('.png', '.jpg', '.jpeg'))
+        ]
+        image_paths = [os.path.join(image_dir, f) for f in image_files]
         
 
         num_columns = 4  # Number of columns for the tool palette
