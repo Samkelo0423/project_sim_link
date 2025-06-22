@@ -1,6 +1,6 @@
 import sys
 from PyQt5.QtWidgets import QApplication
-from process_flow_editor import ProcessFlowEditor
+from UI_Interface.process_flow_editor import ProcessFlowEditor
 
 def main():
     app = QApplication(sys.argv)
