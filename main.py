@@ -1,5 +1,4 @@
 import sys
-import os
 from PyQt5.QtWidgets import QApplication
 from UI_Interface.main_window import ProcessFlowEditor
 
