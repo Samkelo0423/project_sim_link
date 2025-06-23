@@ -1,14 +1,20 @@
 import sys
 import os
 from PyQt5.QtWidgets import QApplication
-from UI_Interface.process_flow_editor import ProcessFlowEditor
+from UI_Interface.main_window import ProcessFlowEditor
 
 def main():
+    """
+    Entry point for the application.
+    - Initializes the QApplication.
+    - Creates and shows the main window.
+    - Starts the event loop.
+    """
     app = QApplication(sys.argv)
-    window = ProcessFlowEditor()
+    window = ProcessFlowEditor()  # Main application window
     window.show()
-    sys.exit(app.exec_())
+    sys.exit(app.exec_())  # Start the Qt event loop
 
 if __name__ == "__main__":
-
-   main()
+    # Run the main function if this script is executed directly
+    main()

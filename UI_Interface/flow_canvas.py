@@ -24,7 +24,7 @@ class Canvas(QFrame):
         self.scaleFactor = 1.0  # Zoom level
         self.gridVisible = True  # Flag to control grid visibility
 
-        #Get screen size for dynamic scaling 
+        # Get screen size for dynamic scaling 
         screen = QGuiApplication.primaryScreen().availableGeometry()
         self.screen_width = screen.width()
         self.screen_height = screen.height()
@@ -66,8 +66,6 @@ class Canvas(QFrame):
         button.setStyleSheet("border: 2px solid black; background-color: white;")
         return button
 
-    
-
     def dropEvent(self, event):
         """
         Handles drop event to add dropped images to the canvas.
@@ -77,16 +75,16 @@ class Canvas(QFrame):
         if event.mimeData().hasFormat("image/png"):
             byte_array = event.mimeData().data("image/png")
             
-            #Load the original image from the byte array
+            # Load the original image from the byte array
             original_pixmap = QPixmap()
             original_pixmap.loadFromData(byte_array)
 
-            #Creat label and show it
+            # Create label and show it
             image_label = QLabel(self)
             image_label.setPixmap(original_pixmap)
             self.set_image_border_color(image_label, QColor("black"))  # Set initial border color
 
-            #Add to images dict first
+            # Add to images dict first
             self.images[image_label] = {
                 "pixmap": original_pixmap,
                 "size": original_pixmap.size(),
@@ -99,7 +97,6 @@ class Canvas(QFrame):
             }
 
             # Resize the image immediately (e.g., to a %)
-
             self.resizeImageAtDropEvent(image_label, 0.5)  # Resize to 50% of original size
 
             # Center it based on new size
@@ -107,17 +104,15 @@ class Canvas(QFrame):
             position = event.pos() - QPoint(new_size.width() // 2, new_size.height() // 2)
             image_label.move(position)
 
-            # update position in metadata
+            # Update position in metadata
             self.images[image_label]["position"] = position
 
             # Set original size/position to the resized/centered state
-
             self.images[image_label]["original_size"] = new_size
             self.images[image_label]["original_position"] = position
-            
 
             image_label.show()  # Show the image label
-    
+
     def resizeImageAtDropEvent(self, image_label, scale_factor):
         """
         Resizes the image label based on the scale factor.
@@ -138,6 +133,9 @@ class Canvas(QFrame):
             data["size"] = scaled_pixmap.size()  # Update size in metadata
 
     def set_image_border_color(self, label, color):
+        """
+        Sets the border color for the image label.
+        """
         label.setStyleSheet(f"border: 2px solid {color.name()};")
 
     def dragEnterEvent(self, event):
@@ -167,7 +165,6 @@ class Canvas(QFrame):
         for image_label in self.images:
             if image_label.geometry().contains(event.pos()):
 
-                
                 if event.button() == Qt.RightButton:
                     self.showDeleteButton(event, image_label)  # Show delete button on right-click
                     return
@@ -178,8 +175,7 @@ class Canvas(QFrame):
                 self.raise_image(image_label)
                 properties = self.images[image_label]
 
-                # Adjust the offser for zoom
-
+                # Adjust the offset for zoom
                 mouse_logical_position = event.pos() / self.scaleFactor
                 properties["current_image_offset"] = mouse_logical_position - properties["position"]
                 self.set_image_border_color(image_label, QColor("red"))
@@ -188,7 +184,7 @@ class Canvas(QFrame):
                 if resize_corner := self.get_resize_corner(event.pos(), image_label):
                     properties["resizing"] = True
                     properties["resize_corner"] = resize_corner
-                    properties["resizing_offset"] = (event.pos() - properties["position"])/ self.scaleFactor
+                    properties["resizing_offset"] = (event.pos() - properties["position"]) / self.scaleFactor
                 break
 
     def mouseMoveEvent(self, event):
@@ -202,7 +198,7 @@ class Canvas(QFrame):
                 self.resize_image(event.pos(), properties)
             else:
                 if event.buttons() == Qt.LeftButton:
-
+                    # Calculate logical position for movement
                     mouse_logical_pos = event.pos() / self.scaleFactor
                     new_logical_pos = mouse_logical_pos - properties["current_image_offset"]
                     properties["position"] = new_logical_pos  # Update logical position
@@ -295,14 +291,13 @@ class Canvas(QFrame):
     def resetView(self):
         """
         Resets the view to the original zoom level.
+        Only resets image sizes, not positions.
         """
         self.scaleFactor = 1.0
         for image_label, properties in self.images.items():
-            # Use the original size and position if available, else fall back to current
-            
+            # Use the original size if available, else fall back to current
             properties["size"] = properties["original_size"]
-            # properties["position"] = properties["original_position"]
-        
+            # properties["position"] remains unchanged to preserve user placement
         self.updateImageScaling()
         self.update()
 
@@ -311,8 +306,7 @@ class Canvas(QFrame):
         Updates the size and position of images based on the current scale factor.
         """
         for image_label, properties in self.images.items():
-            # Scale the original possition and size
-
+            # Scale the logical position and size for display
             original_position = properties["position"]
             original_size = properties["size"]
             scaled_x = int(original_position.x() * self.scaleFactor)
@@ -327,7 +321,6 @@ class Canvas(QFrame):
                 Qt.SmoothTransformation
             )
 
-            
             image_label.setGeometry(
                 scaled_x, 
                 scaled_y, 
@@ -405,7 +398,6 @@ class Canvas(QFrame):
 
         # Create a custom event to remove the button when it loses focus
         class DeleteButtonFocusOutEvent(QEvent):
-
             def __init__(self, delete_button):
                 super().__init__(QEvent.FocusOut)
                 self.delete_button = delete_button
