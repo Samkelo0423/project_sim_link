@@ -217,13 +217,14 @@ class Canvas(QFrame):
         """
         if self.active_image is not None:
             properties = self.images[self.active_image]
+            widget_pos = self.active_image.pos()
+            logical_position = QPoint(int(widget_pos.x() / self.scaleFactor), int(widget_pos.y() / self.scaleFactor))
             if properties["resizing"]:
                 properties["resizing"] = False
                 properties["size"] = self.active_image.pixmap().size()
-                widget_pos = self.active_image.pos()
-                properties["position"] = QPoint(widget_pos.x() / self.scaleFactor, widget_pos.y() / self.scaleFactor)
+                properties["position"] = logical_position
             else:
-                properties["position"] = self.active_image.pos()
+                properties["position"] = logical_position
             self.set_image_border_color(self.active_image, QColor("black"))  # Reset the border color
             self.active_image = None
 
