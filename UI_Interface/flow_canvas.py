@@ -48,22 +48,33 @@ class Canvas(QFrame):
 
     def createButton(self, text, handler):
         """
-        Utility method to create buttons.
+        Utility method to create modern, padded, and themed buttons.
         """
-        # Get the primary screen size to position buttons
-        screen = QGuiApplication.primaryScreen()
-        screen_size = screen.availableGeometry()
-        screen_width = screen_size.width()
-        screen_height = screen_size.height()
-
-        # Create a button with specified text and handler
-        button_with = int(screen_width * 0.04)  # Button width as % of screen width
-        button_height = int(screen_height * 0.035)  # Button height as % of screen height
-
         button = QPushButton(text)
-        button.setFixedSize(button_with, button_height)
+        button.setFixedSize(80, 32)  # Fixed size for consistency
         button.clicked.connect(handler)
-        button.setStyleSheet("border: 2px solid black; background-color: white;")
+        button.setStyleSheet("""
+            QPushButton {
+                background-color: #e0e0e0;
+                color: #222;
+                border: 1.5px solid;
+                border-radius: 8px;
+                padding: 8px 12px;
+                font-size: 15px;
+                font-weight: 600;
+                letter-spacing: 1px;
+            }
+            QPushButton:hover {
+                background-color: #cccccc;
+                color: #111;
+                border: 1.5px solid #9e9e9e;
+            }
+            QPushButton:pressed {
+                background-color: #757575;
+                color: #fff;
+                border: 1.5px solid #616161;
+            }
+        """)
         return button
 
     def dropEvent(self, event):
