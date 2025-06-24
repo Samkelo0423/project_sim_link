@@ -4,10 +4,12 @@ from PyQt5.QtWidgets import (
     QPushButton,
     QVBoxLayout,
     QHBoxLayout,
+    QWidget,
 )
 from PyQt5.QtGui import QGuiApplication, QPixmap
 from PyQt5.QtCore import Qt, QPoint, QRect, QEvent
 from PyQt5.QtGui import QPixmap, QPainter, QColor, QCursor
+import os
 
 class Canvas(QFrame):
     def __init__(self, parent=None):
@@ -23,6 +25,9 @@ class Canvas(QFrame):
         self.active_image = None  # Currently selected image label
         self.scaleFactor = 1.0  # Zoom level
         self.gridVisible = True  # Flag to control grid visibility
+        self.adjust_mode = False
+        self.last_pan_point = None
+        self.grid_offset = QPoint(0, 0)
 
         # Get screen size for dynamic scaling 
         screen = QGuiApplication.primaryScreen().availableGeometry()
@@ -32,27 +37,33 @@ class Canvas(QFrame):
     def setupUI(self):
         """
         Sets up the user interface.
-        - Creates zoom buttons.
+        - Creates zoom and adjust buttons on the same horizontal level.
         """
         main_layout = QVBoxLayout(self)  # Main vertical layout
-        zoom_buttons_layout = QHBoxLayout()  # Layout for zoom buttons
-        zoom_in_button = self.createButton("+", self.zoomIn)  # Button to zoom in
-        zoom_out_button = self.createButton("-", self.zoomOut)  # Button to zoom out
-        reset_view_button = self.createButton("Reset", self.resetView)  # Button to reset zoom
-        zoom_buttons_layout.addWidget(zoom_in_button)
-        zoom_buttons_layout.addWidget(zoom_out_button)
-        zoom_buttons_layout.addWidget(reset_view_button)
-        zoom_buttons_layout.addStretch(1)  # Align buttons to the right
-        main_layout.addLayout(zoom_buttons_layout)
+
+        # --- All buttons in one horizontal layout ---
+        button_layout = QHBoxLayout()
+        zoom_in_button = self.createButton("+", self.zoomIn)
+        zoom_out_button = self.createButton("-", self.zoomOut)
+        reset_view_button = self.createButton("Reset", self.resetView)
+        button_layout.addWidget(zoom_in_button)
+        button_layout.addWidget(zoom_out_button)
+        button_layout.addWidget(reset_view_button)
+        button_layout.addStretch(1)  # Pushes the adjust button to the right
+        adjust_button = self.createButton("Adjust", self.toggleAdjustMode)
+        button_layout.addWidget(adjust_button)
+
+        main_layout.addLayout(button_layout)
         main_layout.addStretch(1)  # Stretch to expand layout
 
-    def createButton(self, text, handler):
+    def createButton(self, text, handler, checkable=False):
         """
         Utility method to create modern, padded, and themed buttons.
         """
         button = QPushButton(text)
         button.setFixedSize(80, 32)  # Fixed size for consistency
         button.clicked.connect(handler)
+        button.setCheckable(checkable)
         button.setStyleSheet("""
             QPushButton {
                 background-color: #e0e0e0;
@@ -69,8 +80,8 @@ class Canvas(QFrame):
                 color: #111;
                 border: 1.5px solid #9e9e9e;
             }
-            QPushButton:pressed {
-                background-color: #757575;
+            QPushButton:pressed, QPushButton:checked {
+                background-color: #757575; /* Medium/dark grey */
                 color: #fff;
                 border: 1.5px solid #616161;
             }
@@ -80,49 +91,69 @@ class Canvas(QFrame):
     def dropEvent(self, event):
         """
         Handles drop event to add dropped images to the canvas.
-        - Loads dropped image and creates a QLabel to display it.
+        - Loads dropped image and creates a QWidget with image and label.
         - Stores image properties in the dictionary.
         """
         if event.mimeData().hasFormat("image/png"):
             byte_array = event.mimeData().data("image/png")
-            
-            # Load the original image from the byte array
             original_pixmap = QPixmap()
             original_pixmap.loadFromData(byte_array)
 
-            # Create label and show it
-            image_label = QLabel(self)
-            image_label.setPixmap(original_pixmap)
-            self.set_image_border_color(image_label, QColor("black"))  # Set initial border color
+            # Always get the label from the mime text if available
+            base_name = event.mimeData().text() or "Image"
 
-            # Add to images dict first
-            self.images[image_label] = {
+            # Create the image label
+            image_label = QLabel()
+            image_label.setPixmap(original_pixmap)
+            image_label.setAlignment(Qt.AlignCenter)
+            self.set_image_border_color(image_label, QColor("black"))
+
+            # Create the text label
+            text_label = QLabel(base_name)
+            text_label.setAlignment(Qt.AlignCenter)
+            text_label.setStyleSheet("font-size: 11px; color: #333;")
+
+            # Combine image and text in a vertical layout
+            container = QWidget(self)
+            container.setStyleSheet("background: transparent;")
+            v_layout = QVBoxLayout(container)
+            v_layout.setContentsMargins(2, 2, 2, 2)
+            v_layout.setSpacing(2)
+            v_layout.setAlignment(Qt.AlignHCenter)
+            v_layout.addWidget(image_label, alignment=Qt.AlignHCenter)
+            v_layout.addWidget(text_label, alignment=Qt.AlignHCenter)
+
+            # Resize the image
+            scale_factor = 0.80
+            new_width = int(original_pixmap.width() * scale_factor)
+            new_height = int(original_pixmap.height() * scale_factor)
+            scaled_pixmap = original_pixmap.scaled(new_width, new_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            image_label.setPixmap(scaled_pixmap)
+            image_label.setFixedSize(scaled_pixmap.size())
+
+            # --- Fix: Resize the container to fit both image and label ---
+            container.adjustSize()
+            container_width = container.sizeHint().width()
+            container_height = container.sizeHint().height()
+
+            # Center the container based on its full size (image + label)
+            position = event.pos() - QPoint(container_width // 2, container_height // 2)
+            container.move(position)
+
+            self.images[container] = {
                 "pixmap": original_pixmap,
-                "size": original_pixmap.size(),
-                "position": event.pos(),
+                "size": scaled_pixmap.size(),
+                "position": position,
                 "resizing_offset": QPoint(),
                 "resizing": False,
                 "resize_corner": None,
-                "original_size": original_pixmap.size(),
-                "original_position": event.pos(),
+                "original_size": scaled_pixmap.size(),
+                "original_position": position,
+                "image_label": image_label,
+                "text_label": text_label,
             }
 
-            # Resize the image immediately (e.g., to a %)
-            self.resizeImageAtDropEvent(image_label, 0.5)  # Resize to 50% of original size
-
-            # Center it based on new size
-            new_size = self.images[image_label]["size"]
-            position = event.pos() - QPoint(new_size.width() // 2, new_size.height() // 2)
-            image_label.move(position)
-
-            # Update position in metadata
-            self.images[image_label]["position"] = position
-
-            # Set original size/position to the resized/centered state
-            self.images[image_label]["original_size"] = new_size
-            self.images[image_label]["original_position"] = position
-
-            image_label.show()  # Show the image label
+            container.show()
 
     def resizeImageAtDropEvent(self, image_label, scale_factor):
         """
@@ -173,26 +204,31 @@ class Canvas(QFrame):
         - Selects/deselects images.
         - Initiates resizing of images.
         """
-        for image_label in self.images:
-            if image_label.geometry().contains(event.pos()):
+        if self.adjust_mode and event.button() == Qt.LeftButton:
+            self.setCursor(Qt.ClosedHandCursor)
+            self.last_pan_point = event.pos()
+            return
+
+        for container in self.images:
+            if container.geometry().contains(event.pos()):
 
                 if event.button() == Qt.RightButton:
-                    self.showDeleteButton(event, image_label)  # Show delete button on right-click
+                    self.showDeleteButton(event, container)
                     return
 
-                if self.active_image is not None:
-                    self.set_image_border_color(self.active_image, QColor("black"))
-                self.active_image = image_label
-                self.raise_image(image_label)
-                properties = self.images[image_label]
+                self.active_image = container
+                self.raise_image(container)
+                properties = self.images[container]
 
                 # Adjust the offset for zoom
-                mouse_logical_position = event.pos() / self.scaleFactor
+                mouse_logical_position = (event.pos() - self.grid_offset) / self.scaleFactor
                 properties["current_image_offset"] = mouse_logical_position - properties["position"]
-                self.set_image_border_color(image_label, QColor("red"))
+
+                # Set border color to red on select (only on the image label)
+                self.set_image_border_color(properties["image_label"], QColor("red"))
 
                 # Check if resizing is initiated by clicking on a resize corner
-                if resize_corner := self.get_resize_corner(event.pos(), image_label):
+                if resize_corner := self.get_resize_corner(event.pos(), container):
                     properties["resizing"] = True
                     properties["resize_corner"] = resize_corner
                     properties["resizing_offset"] = (event.pos() - properties["position"]) / self.scaleFactor
@@ -203,6 +239,14 @@ class Canvas(QFrame):
         Handles mouse move event.
         - Moves or resizes the selected image.
         """
+        if self.adjust_mode and self.last_pan_point is not None:
+            delta = event.pos() - self.last_pan_point
+            self.last_pan_point = event.pos()
+            self.grid_offset += delta
+            self.updateImageScaling()  # Move objects with the grid
+            self.update()
+            return
+
         if self.active_image is not None:
             properties = self.images[self.active_image]
             if properties["resizing"]:
@@ -210,11 +254,11 @@ class Canvas(QFrame):
             else:
                 if event.buttons() == Qt.LeftButton:
                     # Calculate logical position for movement
-                    mouse_logical_pos = event.pos() / self.scaleFactor
+                    mouse_logical_pos = (event.pos() - self.grid_offset) / self.scaleFactor
                     new_logical_pos = mouse_logical_pos - properties["current_image_offset"]
                     properties["position"] = new_logical_pos  # Update logical position
-                    scaled_x = int(new_logical_pos.x() * self.scaleFactor)
-                    scaled_y = int(new_logical_pos.y() * self.scaleFactor)
+                    scaled_x = int(new_logical_pos.x() * self.scaleFactor) + self.grid_offset.x()
+                    scaled_y = int(new_logical_pos.y() * self.scaleFactor) + self.grid_offset.y()
                     self.active_image.move(scaled_x, scaled_y)
 
     def mouseReleaseEvent(self, event):
@@ -222,17 +266,27 @@ class Canvas(QFrame):
         Handles mouse release event.
         - Finalizes resizing or image position.
         """
+        if self.adjust_mode and event.button() == Qt.LeftButton:
+            self.setCursor(Qt.OpenHandCursor)
+            self.last_pan_point = None
+            return
+
         if self.active_image is not None:
             properties = self.images[self.active_image]
             widget_pos = self.active_image.pos()
-            logical_position = QPoint(int(widget_pos.x() / self.scaleFactor), int(widget_pos.y() / self.scaleFactor))
+            # Subtract grid_offset before dividing by scaleFactor to get logical position
+            logical_x = (widget_pos.x() - self.grid_offset.x()) / self.scaleFactor
+            logical_y = (widget_pos.y() - self.grid_offset.y()) / self.scaleFactor
+            logical_position = QPoint(int(logical_x), int(logical_y))
             if properties["resizing"]:
                 properties["resizing"] = False
-                properties["size"] = self.active_image.pixmap().size()
+                properties["size"] = properties["original_size"]
                 properties["position"] = logical_position
             else:
                 properties["position"] = logical_position
-            self.set_image_border_color(self.active_image, QColor("black"))  # Reset the border color
+
+            # Reset the border color to black (only on the image label)
+            self.set_image_border_color(properties["image_label"], QColor("black"))
             self.active_image = None
 
     def get_resize_corner(self, pos, image_label):
@@ -301,44 +355,90 @@ class Canvas(QFrame):
 
     def resetView(self):
         """
-        Resets the view to the original zoom level.
-        Only resets image sizes, not positions.
+        Adjusts the view so all objects are visible within the canvas.
         """
-        self.scaleFactor = 1.0
-        for image_label, properties in self.images.items():
-            # Use the original size if available, else fall back to current
-            properties["size"] = properties["original_size"]
-            # properties["position"] remains unchanged to preserve user placement
+        if not self.images:
+            return
+
+        # Find bounding rect of all objects (in logical coordinates)
+        min_x, min_y = float('inf'), float('inf')
+        max_x, max_y = float('-inf'), float('-inf')
+        for props in self.images.values():
+            pos = props["position"]
+            size = props["size"]
+            min_x = min(min_x, pos.x())
+            min_y = min(min_y, pos.y())
+            max_x = max(max_x, pos.x() + size.width())
+            max_y = max(max_y, pos.y() + size.height())
+
+        # Add a margin (in logical units)
+        margin = 40
+        min_x -= margin
+        min_y -= margin
+        max_x += margin
+        max_y += margin
+
+        # Calculate the bounding box size
+        bounding_width = max_x - min_x
+        bounding_height = max_y - min_y
+
+        # Get the available widget size
+        canvas_width = self.width()
+        canvas_height = self.height()
+
+        # Compute the scale factor to fit all objects
+        if bounding_width == 0 or bounding_height == 0:
+            scale = 1.0
+        else:
+            scale_x = canvas_width / bounding_width
+            scale_y = canvas_height / bounding_height
+            scale = min(scale_x, scale_y, 1.0)  # Don't zoom in beyond 1.0
+
+        self.scaleFactor = scale
+
+        # Center the bounding box in the canvas
+        offset_x = int((canvas_width - (bounding_width * scale)) / 2 - min_x * scale)
+        offset_y = int((canvas_height - (bounding_height * scale)) / 2 - min_y * scale)
+        self.grid_offset = QPoint(offset_x, offset_y)
+
         self.updateImageScaling()
         self.update()
 
     def updateImageScaling(self):
         """
-        Updates the size and position of images based on the current scale factor.
+        Updates the size and position of images based on the current scale factor and grid offset.
         """
-        for image_label, properties in self.images.items():
-            # Scale the logical position and size for display
+        for container, properties in self.images.items():
+            # Logical position and size
             original_position = properties["position"]
             original_size = properties["size"]
-            scaled_x = int(original_position.x() * self.scaleFactor)
-            scaled_y = int(original_position.y() * self.scaleFactor)
+
+            # Apply scaling and grid offset
+            scaled_x = int(original_position.x() * self.scaleFactor) + self.grid_offset.x()
+            scaled_y = int(original_position.y() * self.scaleFactor) + self.grid_offset.y()
             scaled_width = int(original_size.width() * self.scaleFactor)
             scaled_height = int(original_size.height() * self.scaleFactor)
 
+            # Scale the image pixmap
             scaled_pixmap = properties["pixmap"].scaled(
-                scaled_width, 
-                scaled_height, 
-                Qt.KeepAspectRatio, 
+                scaled_width,
+                scaled_height,
+                Qt.KeepAspectRatio,
                 Qt.SmoothTransformation
             )
 
-            image_label.setGeometry(
-                scaled_x, 
-                scaled_y, 
-                scaled_width, 
-                scaled_height
-            )
+            # Update the image label pixmap and size
+            image_label = properties["image_label"]
             image_label.setPixmap(scaled_pixmap)
+            image_label.setFixedSize(scaled_pixmap.size())
+
+            # Adjust the container size to fit both image and text
+            container.adjustSize()
+            container_width = container.sizeHint().width()
+            container_height = container.sizeHint().height()
+
+            # Move the container to the scaled and offset position
+            container.move(scaled_x, scaled_y)
 
     def paintEvent(self, event):
         """
@@ -354,18 +454,18 @@ class Canvas(QFrame):
         """
         grid_color = QColor(60, 70, 80)
         grid_opacity = 0.2
-        start_x, start_y = 0, 0
         grid_spacing = int(20 * self.scaleFactor)
+        offset = self.grid_offset
 
         painter.save()
         painter.setPen(grid_color.lighter(90))
         painter.setOpacity(grid_opacity)
 
-        for x in range(start_x, 1000000, grid_spacing):
-            painter.drawLine(x, 0, x, 1000000)
+        for x in range(offset.x() % grid_spacing, self.width(), grid_spacing):
+            painter.drawLine(x, 0, x, self.height())
 
-        for y in range(start_y, 1000000, grid_spacing):
-            painter.drawLine(0, y, 1000000, y)
+        for y in range(offset.y() % grid_spacing, self.height(), grid_spacing):
+            painter.drawLine(0, y, self.width(), y)
 
         painter.restore()
 
@@ -422,3 +522,13 @@ class Canvas(QFrame):
                 custom_event.remove_button()
 
         delete_button.focusOutEvent = focus_out_event_handler
+
+    def toggleAdjustMode(self):
+        """
+        Toggles the adjust mode on and off.
+        """
+        self.adjust_mode = not self.adjust_mode
+        if self.adjust_mode:
+            self.setCursor(Qt.OpenHandCursor)
+        else:
+            self.setCursor(Qt.ArrowCursor)

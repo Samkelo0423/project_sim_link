@@ -1,6 +1,7 @@
 from PyQt5.QtWidgets import QLabel
 from PyQt5.QtCore import Qt, QPoint, QByteArray, QIODevice, QMimeData, QBuffer
 from PyQt5.QtGui import QPixmap, QDrag, QPainter, QPen, QColor
+import os
 
 
 class DraggableImageLabel(QLabel):
@@ -19,6 +20,7 @@ class DraggableImageLabel(QLabel):
         )
         self.original_pixmap = pixmap  # Store the original scaled pixmap
         self.target_size = 100  # Target size for drag preview and display
+        self.image_path = image_path  # Store the image path
 
         self.setPixmap(pixmap)  # Set image and scale it
         self.setAlignment(Qt.AlignCenter)  # Center align the image
@@ -60,18 +62,19 @@ class DraggableImageLabel(QLabel):
             drag = QDrag(self)
             mime_data = QMimeData()
 
-            # Create a QByteArray to hold the image data
+            # Add image data
             byte_array = QByteArray()
             buffer = QBuffer(byte_array)
             buffer.open(QIODevice.WriteOnly)
             self.pixmap().save(buffer, "PNG")
-            mime_data.setData("image/png", byte_array)  # Set the image as MIME data
-            drag.setMimeData(mime_data)
+            mime_data.setData("image/png", byte_array)
 
-            # Set the pixmap for the drag operation (centered under cursor)
+            # Add filename as text
+            base_name = os.path.splitext(os.path.basename(self.image_path))[0]
+            mime_data.setText(base_name)
+
+            drag.setMimeData(mime_data)
             preview = self.create_bordered_pixmap(self.original_pixmap)
             drag.setPixmap(preview)
-            drag.setHotSpot(
-                QPoint(preview.width() // 2, preview.height() // 2)
-            )  # Set hot spot
+            drag.setHotSpot(QPoint(preview.width() // 2, preview.height() // 2))
             drag.exec_(Qt.MoveAction)
