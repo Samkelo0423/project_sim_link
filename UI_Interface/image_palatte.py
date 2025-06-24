@@ -5,6 +5,50 @@ import os
 from PyQt5.QtCore import Qt
 from UI_Interface.image_palette_items import DraggableImageLabel
 
+SCROLLBAR_STYLE = """
+    QScrollBar:vertical {
+        background: #f0f0f0;
+        width: 10px;
+        margin: 2px 0 2px 0;
+        border-radius: 5px;
+    }
+    QScrollBar::handle:vertical {
+        background: #bdbdbd;
+        min-height: 30px;
+        border-radius: 5px;
+    }
+    QScrollBar::handle:vertical:hover {
+        background: #757575;
+    }
+    QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+        height: 0;
+        background: none;
+        border: none;
+    }
+    QScrollBar:horizontal {
+        background: #f0f0f0;
+        height: 10px;
+        margin: 0 2px 0 2px;
+        border-radius: 5px;
+    }
+    QScrollBar::handle:horizontal {
+        background: #bdbdbd;
+        min-width: 30px;
+        border-radius: 5px;
+    }
+    QScrollBar::handle:horizontal:hover {
+        background: #757575;
+    }
+    QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+        width: 0;
+        background: none;
+        border: none;
+    }
+    QScrollBar::add-page, QScrollBar::sub-page {
+        background: none;
+    }
+"""
+
 class CollapsibleSection(QWidget):
     """
     A collapsible section with a button and a content widget (image grid).
@@ -53,13 +97,19 @@ class CollapsibleSection(QWidget):
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setWidget(self.content_widget)
         self.scroll_area.setFrameShape(QFrame.NoFrame)
-        self.scroll_area.setFixedHeight(220)  # Adjust height as needed
+        self.scroll_area.setVisible(False)  # Start hidden
+
+        # Apply modern scrollbar style
+        self.scroll_area.setStyleSheet(SCROLLBAR_STYLE)
 
         self.scroll_area.setVisible(False)  # Start hidden
 
         # Add images to the grid
         image_width = int(60 * 0.80)
         image_height = int(60 * 0.80)
+        num_images = len(image_paths)
+        num_rows = (num_images + num_columns - 1) // num_columns  # Ceiling division
+
         for i, path in enumerate(image_paths):
             row = i // num_columns
             col = i % num_columns
@@ -87,12 +137,22 @@ class CollapsibleSection(QWidget):
 
             self.content_layout.addWidget(icon_widget, row, col)
 
+        # Dynamically set scroll area height based on number of rows
+        row_height = image_height + 22  # 22 for label and spacing, adjust as needed
+        max_visible_rows = 5  # Limit max height if you want
+        visible_rows = min(num_rows, max_visible_rows)
+        scroll_height = visible_rows * row_height + 12  # 12 for padding/margins
+
+        self.scroll_area.setFixedHeight(scroll_height)
+
         # Main layout with horizontal padding
         layout = QVBoxLayout(self)
         layout.setSpacing(0)
         layout.setContentsMargins(8, 0, 8, 0)  # left, top, right, bottom
         layout.addWidget(self.toggle_button)
         layout.addWidget(self.scroll_area)
+
+        
 
     def toggle_content(self):
         self.scroll_area.setVisible(self.toggle_button.isChecked())
@@ -142,6 +202,9 @@ class Palette(QFrame):
         scroll_area.setWidgetResizable(True)
         scroll_area.setWidget(main_widget)
         scroll_area.setFrameShape(QFrame.NoFrame)
+
+        # Apply modern scrollbar style
+        scroll_area.setStyleSheet(SCROLLBAR_STYLE)
 
         # Set the scroll area as the layout's only widget
         layout = QVBoxLayout(self)

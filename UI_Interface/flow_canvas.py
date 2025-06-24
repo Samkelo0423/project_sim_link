@@ -81,7 +81,7 @@ class Canvas(QFrame):
                 border: 1.5px solid #9e9e9e;
             }
             QPushButton:pressed, QPushButton:checked {
-                background-color: #757575; /* Medium/dark grey */
+                background-color: #757575; 
                 color: #fff;
                 border: 1.5px solid #616161;
             }
@@ -355,52 +355,14 @@ class Canvas(QFrame):
 
     def resetView(self):
         """
-        Adjusts the view so all objects are visible within the canvas.
+        Resets the view to the original zoom level.
+        Only resets image sizes, not positions.
         """
-        if not self.images:
-            return
-
-        # Find bounding rect of all objects (in logical coordinates)
-        min_x, min_y = float('inf'), float('inf')
-        max_x, max_y = float('-inf'), float('-inf')
-        for props in self.images.values():
-            pos = props["position"]
-            size = props["size"]
-            min_x = min(min_x, pos.x())
-            min_y = min(min_y, pos.y())
-            max_x = max(max_x, pos.x() + size.width())
-            max_y = max(max_y, pos.y() + size.height())
-
-        # Add a margin (in logical units)
-        margin = 40
-        min_x -= margin
-        min_y -= margin
-        max_x += margin
-        max_y += margin
-
-        # Calculate the bounding box size
-        bounding_width = max_x - min_x
-        bounding_height = max_y - min_y
-
-        # Get the available widget size
-        canvas_width = self.width()
-        canvas_height = self.height()
-
-        # Compute the scale factor to fit all objects
-        if bounding_width == 0 or bounding_height == 0:
-            scale = 1.0
-        else:
-            scale_x = canvas_width / bounding_width
-            scale_y = canvas_height / bounding_height
-            scale = min(scale_x, scale_y, 1.0)  # Don't zoom in beyond 1.0
-
-        self.scaleFactor = scale
-
-        # Center the bounding box in the canvas
-        offset_x = int((canvas_width - (bounding_width * scale)) / 2 - min_x * scale)
-        offset_y = int((canvas_height - (bounding_height * scale)) / 2 - min_y * scale)
-        self.grid_offset = QPoint(offset_x, offset_y)
-
+        self.scaleFactor = 1.0
+        for image_label, properties in self.images.items():
+            # Use the original size if available, else fall back to current
+            properties["size"] = properties["original_size"]
+            # properties["position"] remains unchanged to preserve user placement
         self.updateImageScaling()
         self.update()
 
