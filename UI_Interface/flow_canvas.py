@@ -7,7 +7,7 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 from PyQt5.QtGui import QGuiApplication, QPixmap
-from PyQt5.QtCore import Qt, QPoint, QRect, QEvent
+from PyQt5.QtCore import Qt, QPoint, QRect, QEvent, QPointF
 from PyQt5.QtGui import QPixmap, QPainter, QColor, QCursor
 import os
 
@@ -41,17 +41,16 @@ class Canvas(QFrame):
         """
         main_layout = QVBoxLayout(self)  # Main vertical layout
 
-        # --- All buttons in one horizontal layout ---
         button_layout = QHBoxLayout()
-        zoom_in_button = self.createButton("+", self.zoomIn)
-        zoom_out_button = self.createButton("-", self.zoomOut)
-        reset_view_button = self.createButton("Reset", self.resetView)
-        button_layout.addWidget(zoom_in_button)
-        button_layout.addWidget(zoom_out_button)
-        button_layout.addWidget(reset_view_button)
-        button_layout.addStretch(1)  # Pushes the adjust button to the right
-        adjust_button = self.createButton("Adjust", self.toggleAdjustMode)
-        button_layout.addWidget(adjust_button)
+        self.zoom_in_button = self.createButton("+", self.zoomIn)
+        self.zoom_out_button = self.createButton("-", self.zoomOut)
+        self.reset_view_button = self.createButton("Reset", self.resetView)
+        button_layout.addWidget(self.zoom_in_button)
+        button_layout.addWidget(self.zoom_out_button)
+        button_layout.addWidget(self.reset_view_button)
+        button_layout.addStretch(1)
+        self.adjust_button = self.createButton("Adjust", self.toggleAdjustMode)
+        button_layout.addWidget(self.adjust_button)
 
         main_layout.addLayout(button_layout)
         main_layout.addStretch(1)  # Stretch to expand layout
@@ -140,15 +139,20 @@ class Canvas(QFrame):
             position = event.pos() - QPoint(container_width // 2, container_height // 2)
             container.move(position)
 
+            # Set the logical position for the dropped object
+            logical_x = (position.x() - self.grid_offset.x()) / self.scaleFactor
+            logical_y = (position.y() - self.grid_offset.y()) / self.scaleFactor
+            logical_position = QPointF(logical_x, logical_y)
+
             self.images[container] = {
                 "pixmap": original_pixmap,
                 "size": scaled_pixmap.size(),
-                "position": position,
+                "position": logical_position,  # <-- Use logical position here!
                 "resizing_offset": QPoint(),
                 "resizing": False,
                 "resize_corner": None,
                 "original_size": scaled_pixmap.size(),
-                "original_position": position,
+                "original_position": logical_position,
                 "image_label": image_label,
                 "text_label": text_label,
             }
@@ -257,6 +261,8 @@ class Canvas(QFrame):
                     mouse_logical_pos = (event.pos() - self.grid_offset) / self.scaleFactor
                     new_logical_pos = mouse_logical_pos - properties["current_image_offset"]
                     properties["position"] = new_logical_pos  # Update logical position
+
+                    # Calculate new screen position
                     scaled_x = int(new_logical_pos.x() * self.scaleFactor) + self.grid_offset.x()
                     scaled_y = int(new_logical_pos.y() * self.scaleFactor) + self.grid_offset.y()
                     self.active_image.move(scaled_x, scaled_y)
@@ -277,7 +283,7 @@ class Canvas(QFrame):
             # Subtract grid_offset before dividing by scaleFactor to get logical position
             logical_x = (widget_pos.x() - self.grid_offset.x()) / self.scaleFactor
             logical_y = (widget_pos.y() - self.grid_offset.y()) / self.scaleFactor
-            logical_position = QPoint(int(logical_x), int(logical_y))
+            logical_position = QPointF(logical_x, logical_y)
             if properties["resizing"]:
                 properties["resizing"] = False
                 properties["size"] = properties["original_size"]
@@ -354,17 +360,57 @@ class Canvas(QFrame):
         self.update()
 
     def resetView(self):
+        
         """
-        Resets the view to the original zoom level.
-        Only resets image sizes, not positions.
+        Adjusts the view so all objects are visible within the canvas.
         """
-        self.scaleFactor = 1.0
-        for image_label, properties in self.images.items():
-            # Use the original size if available, else fall back to current
-            properties["size"] = properties["original_size"]
-            # properties["position"] remains unchanged to preserve user placement
+        if not self.images:
+            return
+
+        # Find bounding rect of all objects (in logical coordinates)
+        min_x, min_y = float('inf'), float('inf')
+        max_x, max_y = float('-inf'), float('-inf')
+        for props in self.images.values():
+            pos = props["position"]
+            size = props["size"]
+            min_x = min(min_x, pos.x())
+            min_y = min(min_y, pos.y())
+            max_x = max(max_x, pos.x() + size.width())
+            max_y = max(max_y, pos.y() + size.height())
+
+        # Add a margin (in logical units)
+        margin = 40
+        min_x -= margin
+        min_y -= margin
+        max_x += margin
+        max_y += margin
+
+        # Calculate the bounding box size
+        bounding_width = max_x - min_x
+        bounding_height = max_y - min_y
+
+        # Get the available widget size
+        canvas_width = self.width()
+        canvas_height = self.height()
+
+        # Compute the scale factor to fit all objects
+        if bounding_width == 0 or bounding_height == 0:
+            scale = 1.0
+        else:
+            scale_x = canvas_width / bounding_width
+            scale_y = canvas_height / bounding_height
+            scale = min(scale_x, scale_y, 1.0)  # Don't zoom in beyond 1.0
+
+        self.scaleFactor = scale
+
+        # Center the bounding box in the canvas
+        offset_x = int((canvas_width - (bounding_width * scale)) / 2 - min_x * scale)
+        offset_y = int((canvas_height - (bounding_height * scale)) / 2 - min_y * scale)
+        self.grid_offset = QPoint(offset_x, offset_y)
+
         self.updateImageScaling()
         self.update()
+
 
     def updateImageScaling(self):
         """
@@ -492,5 +538,15 @@ class Canvas(QFrame):
         self.adjust_mode = not self.adjust_mode
         if self.adjust_mode:
             self.setCursor(Qt.OpenHandCursor)
+            # Disable other buttons
+            self.zoom_in_button.setDisabled(True)
+            self.zoom_out_button.setDisabled(True)
+            self.reset_view_button.setDisabled(True)
+            self.adjust_button.setChecked(True)
         else:
             self.setCursor(Qt.ArrowCursor)
+            # Enable other buttons
+            self.zoom_in_button.setDisabled(False)
+            self.zoom_out_button.setDisabled(False)
+            self.reset_view_button.setDisabled(False)
+            self.adjust_button.setChecked(False)
