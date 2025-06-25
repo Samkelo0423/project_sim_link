@@ -42,6 +42,7 @@ class Canvas(QFrame):
         screen = QGuiApplication.primaryScreen().availableGeometry()
         self.screen_width = screen.width()
         self.screen_height = screen.height()
+        self.selected_connection = None  # Track selected connection
 
     def setupUI(self):
         """
@@ -279,6 +280,14 @@ class Canvas(QFrame):
             - If right-click, shows the context menu for that image.
             - If left-click, selects the image, highlights it, and prepares for move/resize.
         """
+
+        # --- Check if right-click is on a connection ---
+        if event.button() == Qt.RightButton:
+            clicked_conn = self.connection_at(event.pos())
+            if clicked_conn:
+                self.selected_connection = clicked_conn
+                self.showConnectionContextMenu(event)
+                return
 
         if self.connecting:
             for container in self.images:
@@ -947,36 +956,6 @@ class Canvas(QFrame):
         How:
             - Flips the boolean flag self.adjust_mode.
             - If enabling adjust mode:
-                border-radius: 6px;
-            }
-            QMenu::separator {
-                height: 1px;
-                background: #444;
-                margin-left: 16px;
-                margin-right: 16px;
-            }
-        """ 
-        # Show the context menu at the calculated position
-        action = menu.exec_(event.globalPos())
-        if action == delete_action:
-            self.delete_image(image_label)
-        elif action == connect_line:
-            self.connect_line(image_label)
-       
-
-    def toggleAdjustMode(self):
-        """
-        Toggles the adjust mode on and off.
-
-        What it does:
-            - Switches between normal mode and adjust (panning) mode for the canvas.
-            - In adjust mode, the user can pan (move) the entire canvas by dragging.
-            - Disables zoom and reset buttons while in adjust mode to prevent conflicting actions.
-            - Changes the mouse cursor to indicate panning is active.
-
-        How:
-            - Flips the boolean flag self.adjust_mode.
-            - If enabling adjust mode:
                 - Sets the cursor to an open hand (Qt.OpenHandCursor) to indicate panning.
                 - Disables the zoom in, zoom out, and reset view buttons.
                 - Checks the adjust button to show it's active.
@@ -1031,4 +1010,149 @@ class Canvas(QFrame):
         painter.setBrush(QColor(0, 120, 255))
         painter.drawPolygon(*points)
 
+    def connection_at(self, pos):
+        """
+        Returns the connection under the mouse position, if any.
+        """
+        threshold = 8  # pixels
+        for conn in self.connections:
+            path = self.connection_path(conn)
+            if path and path.contains(QPointF(pos)):
+                return conn
+            # Fallback: check distance to each segment
+            points = [p for p in self.connection_path_points(conn)]
+            for i in range(len(points)-1):
+                if self.point_near_line(pos, points[i], points[i+1], threshold):
+                    return conn
+        return None
 
+    def connection_path(self, conn):
+        """
+        Returns a QPainterPath for the connection (same as in paintEvent).
+        """
+        from PyQt5.QtGui import QPainterPath
+        start = conn['start']
+        end = conn['end']
+        conn_type = conn.get('type', 'data')
+        port = conn.get('port', 0)
+        total_ports = conn.get('total_ports', 1)
+        start_rect = start.geometry()
+        end_rect = end.geometry()
+        start_pos = (start_rect.right(), start_rect.top() + start_rect.height() // 2)
+        end_pos = (end_rect.left(), end_rect.top() + end_rect.height() // 2)
+        offset = 24
+        gap = 60
+        path = QPainterPath()
+        path.moveTo(*start_pos)
+        if start_pos[0] < end_pos[0] - offset:
+            p1 = (start_pos[0] + offset, start_pos[1])
+            p2 = (end_pos[0] - offset, end_pos[1])
+            if abs(start_pos[1] - end_pos[1]) < 2 * offset:
+                path.lineTo(*p1)
+                path.lineTo(p1[0], end_pos[1])
+                path.lineTo(*p2)
+            else:
+                mid_y = (start_pos[1] + end_pos[1]) // 2
+                path.lineTo(*p1)
+                path.lineTo(p1[0], mid_y)
+                path.lineTo(p2[0], mid_y)
+                path.lineTo(*p2)
+            path.lineTo(*end_pos)
+        else:
+            top = min(start_rect.top(), end_rect.top())
+            p1 = (start_pos[0] + offset, start_pos[1])
+            p2 = (p1[0], top - gap)
+            p3 = (end_rect.left() - gap, p2[1])
+            p4 = (p3[0], end_pos[1])
+            p5 = (end_pos[0] - offset, end_pos[1])
+            path.lineTo(*p1)
+            path.lineTo(*p2)
+            path.lineTo(*p3)
+            path.lineTo(*p4)
+            path.lineTo(*p5)
+            path.lineTo(*end_pos)
+        return path
+
+    def connection_path_points(self, conn):
+        """
+        Returns a list of points (tuples) along the connection path.
+        Used for hit-testing.
+        """
+        start = conn['start']
+        end = conn['end']
+        start_rect = start.geometry()
+        end_rect = end.geometry()
+        start_pos = (start_rect.right(), start_rect.top() + start_rect.height() // 2)
+        end_pos = (end_rect.left(), end_rect.top() + end_rect.height() // 2)
+        offset = 24
+        gap = 60
+        points = [start_pos]
+        if start_pos[0] < end_pos[0] - offset:
+            p1 = (start_pos[0] + offset, start_pos[1])
+            p2 = (end_pos[0] - offset, end_pos[1])
+            if abs(start_pos[1] - end_pos[1]) < 2 * offset:
+                points += [p1, (p1[0], end_pos[1]), p2]
+            else:
+                mid_y = (start_pos[1] + end_pos[1]) // 2
+                points += [p1, (p1[0], mid_y), (p2[0], mid_y), p2]
+            points.append(end_pos)
+        else:
+            top = min(start_rect.top(), end_rect.top())
+            p1 = (start_pos[0] + offset, start_pos[1])
+            p2 = (p1[0], top - gap)
+            p3 = (end_rect.left() - gap, p2[1])
+            p4 = (p3[0], end_pos[1])
+            p5 = (end_pos[0] - offset, end_pos[1])
+            points += [p1, p2, p3, p4, p5, end_pos]
+        return points
+
+    def point_near_line(self, pt, p1, p2, threshold):
+        """
+        Returns True if pt (QPoint) is within threshold pixels of the line segment p1-p2.
+        """
+        from PyQt5.QtCore import QPoint
+        import math
+        x0, y0 = pt.x(), pt.y()
+        x1, y1 = p1
+        x2, y2 = p2
+        dx = x2 - x1
+        dy = y2 - y1
+        if dx == dy == 0:
+            return math.hypot(x0 - x1, y0 - y1) <= threshold
+        t = max(0, min(1, ((x0-x1)*dx + (y0-y1)*dy) / (dx*dx + dy*dy)))
+        proj_x = x1 + t*dx
+        proj_y = y1 + t*dy
+        return math.hypot(x0 - proj_x, y0 - proj_y) <= threshold
+
+    def showConnectionContextMenu(self, event):
+        """
+        Shows a context menu for a selected connection (line).
+        """
+        menu = QMenu(self)
+        delete_action = menu.addAction("Delete Line")
+        menu.setStyleSheet("""
+            QMenu {
+                background-color: #232323;
+                color: #fff;
+                border: 1.5px solid #444;
+                border-radius: 10px;
+                padding: 10px 0px;
+                font-size: 15px;
+                min-width: 170px;
+            }
+            QMenu::item {
+                padding: 10px 32px 10px 24px;
+                background: transparent;
+                margin: 2px 0px;
+            }
+            QMenu::item:selected {
+                background-color: #444;
+                color: #fff;
+                border-radius: 6px;
+            }
+        """)
+        action = menu.exec_(event.globalPos())
+        if action == delete_action and self.selected_connection:
+            self.connections.remove(self.selected_connection)
+            self.selected_connection = None
+            self.update()
