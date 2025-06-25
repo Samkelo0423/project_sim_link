@@ -58,11 +58,10 @@ class CollapsibleSection(QWidget):
         self.toggle_button = QPushButton(title)
         self.toggle_button.setCheckable(True)
         self.toggle_button.setChecked(False)
-        # Modern flat grey style with customizable font weight and padding
         self.toggle_button.setStyleSheet(f"""
             QPushButton {{
-                background-color: #e0e0e0;   /* Light grey */
-                color: #111;                 /* Black text */
+                background-color: #e0e0e0;
+                color: #111;
                 border: 1.5px solid;
                 border-radius: 8px;
                 padding: 12px 24px;
@@ -74,12 +73,12 @@ class CollapsibleSection(QWidget):
                 margin-top: 6px;
             }}
             QPushButton:hover {{
-                background-color: #cccccc;   /* Slightly darker grey */
+                background-color: #cccccc;
                 color: #111;
                 border: 1.5px solid #9e9e9e;
             }}
             QPushButton:pressed, QPushButton:checked {{
-                background-color: #757575;   /* Medium/dark grey */
+                background-color: #757575;
                 color: #fff;
                 border: 1.5px solid #616161;
             }}
@@ -90,25 +89,16 @@ class CollapsibleSection(QWidget):
         self.content_widget = QWidget()
         self.content_layout = QGridLayout()
         self.content_layout.setAlignment(Qt.AlignTop)
+        self.content_layout.setContentsMargins(16, 12, 16, 12)  # More padding
+        self.content_layout.setSpacing(16)  # More spacing between images
         self.content_widget.setLayout(self.content_layout)
-
-        # Scroll area for images
-        self.scroll_area = QScrollArea()
-        self.scroll_area.setWidgetResizable(True)
-        self.scroll_area.setWidget(self.content_widget)
-        self.scroll_area.setFrameShape(QFrame.NoFrame)
-        self.scroll_area.setVisible(False)  # Start hidden
-
-        # Apply modern scrollbar style
-        self.scroll_area.setStyleSheet(SCROLLBAR_STYLE)
-
-        self.scroll_area.setVisible(False)  # Start hidden
+        self.content_widget.setVisible(False)
 
         # Add images to the grid
         image_width = int(60 * 0.80)
         image_height = int(60 * 0.80)
         num_images = len(image_paths)
-        num_rows = (num_images + num_columns - 1) // num_columns  # Ceiling division
+        num_rows = (num_images + num_columns - 1) // num_columns
 
         for i, path in enumerate(image_paths):
             row = i // num_columns
@@ -129,33 +119,33 @@ class CollapsibleSection(QWidget):
             icon_widget = QWidget()
             icon_widget.setStyleSheet("background: transparent;")
             v_layout = QVBoxLayout(icon_widget)
-            v_layout.setContentsMargins(2, 2, 2, 2)
-            v_layout.setSpacing(2)
-            v_layout.setAlignment(Qt.AlignHCenter)  # <-- This ensures the whole widget is centered
+            v_layout.setContentsMargins(4, 4, 4, 4)   # Small, even padding around each icon
+            v_layout.setSpacing(8)                    # EVEN spacing between image and text
+            v_layout.setAlignment(Qt.AlignHCenter)
             v_layout.addWidget(icon_label, alignment=Qt.AlignHCenter)
             v_layout.addWidget(text_label, alignment=Qt.AlignHCenter)
-
             self.content_layout.addWidget(icon_widget, row, col)
 
-        # Dynamically set scroll area height based on number of rows
-        row_height = image_height + 22  # 22 for label and spacing, adjust as needed
-        max_visible_rows = 5  # Limit max height if you want
-        visible_rows = min(num_rows, max_visible_rows)
-        scroll_height = visible_rows * row_height + 12  # 12 for padding/margins
+        # Set grid layout spacing for even space between icons
+        self.content_layout.setSpacing(12)  # Adjust for desired space between icons
 
-        self.scroll_area.setFixedHeight(scroll_height)
+        # Set content widget background for contrast (optional)
+        self.content_widget.setStyleSheet("background: #e0e0e0; border-radius: 8px;")
 
-        # Main layout with horizontal padding
+        # Dynamically set content_widget height to fit all images
+        row_height = image_height + 32  # More space for label and padding
+        content_height = num_rows * row_height + 24  # More padding
+        self.content_widget.setFixedHeight(content_height)
+
+        # Main layout with horizontal padding and space below each section
         layout = QVBoxLayout(self)
         layout.setSpacing(0)
-        layout.setContentsMargins(8, 0, 8, 0)  # left, top, right, bottom
+        layout.setContentsMargins(8, 0, 8, 12)  # Extra bottom margin for section separation
         layout.addWidget(self.toggle_button)
-        layout.addWidget(self.scroll_area)
-
-        
+        layout.addWidget(self.content_widget)
 
     def toggle_content(self):
-        self.scroll_area.setVisible(self.toggle_button.isChecked())
+        self.content_widget.setVisible(self.toggle_button.isChecked())
 
 class Palette(QFrame):
     """
@@ -175,8 +165,8 @@ class Palette(QFrame):
         main_widget = QWidget()
         main_layout = QVBoxLayout(main_widget)
         main_layout.setAlignment(Qt.AlignTop)
-        main_layout.setSpacing(2)
-        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(1)  # More space between sections
+        main_layout.setContentsMargins(6, 6, 6, 6)
 
         # Base directory for images
         base_dir = os.path.dirname(__file__)
@@ -208,5 +198,5 @@ class Palette(QFrame):
 
         # Set the scroll area as the layout's only widget
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(2, 2, 2, 2)
         layout.addWidget(scroll_area)

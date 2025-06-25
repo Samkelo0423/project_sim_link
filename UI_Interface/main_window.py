@@ -26,8 +26,8 @@ class ProcessFlowEditor(QMainWindow):
         screen_height = screen_size.height()
 
         # Set the window size relative to the screen size
-        self.setGeometry(100, 100, int(screen_width * 0.70), int(screen_height * 0.70))
-        self.setMinimumSize(800, 600)
+        self.setGeometry(100, 100, int(screen_width * 0.90), int(screen_height * 0.90))
+        self.setMinimumSize(900, 700)
 
         # Create actions for menu items (File menu)
         new_action = QAction("&New", self)
@@ -61,7 +61,7 @@ class ProcessFlowEditor(QMainWindow):
 
         # Add tool palette and canvas to main layout with stretch factor
         main_layout.addWidget(tool_palette, 1)  # Tool palette gets less space
-        main_layout.addWidget(canvas, 5)        # Canvas gets more space
+        main_layout.addWidget(canvas, 4)        # Canvas gets more space
 
         # Set main layout for central widget
         central_widget.setLayout(main_layout)

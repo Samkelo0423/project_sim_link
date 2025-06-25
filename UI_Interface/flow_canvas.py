@@ -5,6 +5,7 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
     QWidget,
+    QMenu,
 )
 from PyQt5.QtGui import QGuiApplication, QPixmap
 from PyQt5.QtCore import Qt, QPoint, QRect, QEvent, QPointF
@@ -215,9 +216,11 @@ class Canvas(QFrame):
 
         for container in self.images:
             if container.geometry().contains(event.pos()):
+                
 
+                # If right-click, show context menu
                 if event.button() == Qt.RightButton:
-                    self.showDeleteButton(event, container)
+                    self.showContextMenu(event, container)
                     return
 
                 self.active_image = container
@@ -502,34 +505,53 @@ class Canvas(QFrame):
         """
         image_label.setStyleSheet(f"border: 2px solid {color.name()}; border-radius: 0px;")
 
-    def showDeleteButton(self, event, image_label):
+    def showContextMenu(self, event, image_label):
         """
-        Shows a delete button near the cursor for deleting an image.
+        Shows a modern context menu next to the right-clicked image for multiple actions.
         """
-        # Create and position the delete button
-        delete_button = QPushButton("Delete")
-        delete_button.setStyleSheet("background-color: red; color: white;")
-        delete_button.clicked.connect(lambda: self.delete_image(image_label))
+        menu = QMenu(self)
+        delete_action = menu.addAction("Delete")
+        menu.addSeparator()
+        duplicate_action = menu.addAction("Duplicate")
+        menu.addSeparator()
+        properties_action = menu.addAction("Properties")
 
-        button_pos = event.globalPos() + QPoint(20, 20)  # Offset to position the button near the cursor
-        delete_button.move(self.mapFromGlobal(button_pos))
-        delete_button.show()
-
-        # Create a custom event to remove the button when it loses focus
-        class DeleteButtonFocusOutEvent(QEvent):
-            def __init__(self, delete_button):
-                super().__init__(QEvent.FocusOut)
-                self.delete_button = delete_button
-
-            def remove_button(self):
-                self.delete_button.deleteLater()
-
-        def focus_out_event_handler(event):
-            if event.type() == QEvent.FocusOut:
-                custom_event = DeleteButtonFocusOutEvent(delete_button)
-                custom_event.remove_button()
-
-        delete_button.focusOutEvent = focus_out_event_handler
+        # Modern style: dark, rounded, with padding and clear separators
+        menu.setStyleSheet("""
+            QMenu {
+                background-color: #232323;
+                color: #fff;
+                border: 1.5px solid #444;
+                border-radius: 10px;
+                padding: 10px 0px;
+                font-size: 15px;
+                min-width: 170px;
+            }
+            QMenu::item {
+                padding: 10px 32px 10px 24px;
+                background: transparent;
+                margin: 2px 0px;
+            }
+            QMenu::item:selected {
+                background-color: #444;
+                color: #fff;
+                border-radius: 6px;
+            }
+            QMenu::separator {
+                height: 1px;
+                background: #444;
+                margin-left: 16px;
+                margin-right: 16px;
+            }
+        """)
+        # Show the context menu at the calculated position
+        action = menu.exec_(event.globalPos())
+        if action == delete_action:
+            self.delete_image(image_label)
+        elif action == duplicate_action:
+            self.duplicate_image(image_label)
+        elif action == properties_action:
+            self.show_properties_dialog(image_label)
 
     def toggleAdjustMode(self):
         """
