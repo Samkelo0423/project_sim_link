@@ -16,21 +16,26 @@ class Canvas(QFrame):
     def __init__(self, parent=None):
         """
         Initializes the Canvas widget.
-        - Sets up the UI.
-        - Initializes attributes for managing images.
+
+        What it does:
+            - Sets up the user interface and enables drag-and-drop.
+            - Initializes all attributes for managing images, zoom, grid, and panning.
+
+        How:
+            - Calls setupUI() to create buttons and layouts.
+            - Prepares dictionaries and variables for image management and interaction.
+            - Gets the screen size for potential scaling.
         """
         super().__init__(parent)
-        self.setAcceptDrops(True)  # Allows dropping images onto the canvas
-        self.setupUI()  # Sets up the user interface
-        self.images = {}  # Dictionary to store images and their properties
-        self.active_image = None  # Currently selected image label
-        self.scaleFactor = 1.0  # Zoom level
-        self.gridVisible = True  # Flag to control grid visibility
+        self.setAcceptDrops(True)
+        self.setupUI()
+        self.images = {}
+        self.active_image = None
+        self.scaleFactor = 1.0
+        self.gridVisible = True
         self.adjust_mode = False
         self.last_pan_point = None
         self.grid_offset = QPoint(0, 0)
-
-        # Get screen size for dynamic scaling 
         screen = QGuiApplication.primaryScreen().availableGeometry()
         self.screen_width = screen.width()
         self.screen_height = screen.height()
@@ -38,10 +43,16 @@ class Canvas(QFrame):
     def setupUI(self):
         """
         Sets up the user interface.
-        - Creates zoom and adjust buttons on the same horizontal level.
-        """
-        main_layout = QVBoxLayout(self)  # Main vertical layout
 
+        What it does:
+            - Creates and arranges the main control buttons (zoom in, zoom out, reset, adjust) at the top of the canvas.
+
+        How:
+            - Uses a vertical layout for the main widget.
+            - Adds a horizontal layout for the buttons.
+            - Calls createButton to make styled buttons and adds them to the layout.
+        """
+        main_layout = QVBoxLayout(self)
         button_layout = QHBoxLayout()
         self.zoom_in_button = self.createButton("+", self.zoomIn)
         self.zoom_out_button = self.createButton("-", self.zoomOut)
@@ -52,16 +63,22 @@ class Canvas(QFrame):
         button_layout.addStretch(1)
         self.adjust_button = self.createButton("Adjust", self.toggleAdjustMode)
         button_layout.addWidget(self.adjust_button)
-
         main_layout.addLayout(button_layout)
-        main_layout.addStretch(1)  # Stretch to expand layout
+        main_layout.addStretch(1)
 
     def createButton(self, text, handler, checkable=False):
         """
         Utility method to create modern, padded, and themed buttons.
+
+        What it does:
+            - Creates a QPushButton with a modern style and connects it to a handler function.
+
+        How:
+            - Sets button size, style, and click handler.
+            - Optionally makes the button checkable (toggleable).
         """
         button = QPushButton(text)
-        button.setFixedSize(80, 32)  # Fixed size for consistency
+        button.setFixedSize(80, 32)
         button.clicked.connect(handler)
         button.setCheckable(checkable)
         button.setStyleSheet("""
@@ -91,8 +108,19 @@ class Canvas(QFrame):
     def dropEvent(self, event):
         """
         Handles drop event to add dropped images to the canvas.
-        - Loads dropped image and creates a QWidget with image and label.
-        - Stores image properties in the dictionary.
+
+        What it does:
+            - Loads dropped image and creates a QWidget with image and label.
+            - Stores image properties in the dictionary for later manipulation.
+            - Scales and centers the image at the drop location.
+
+        How:
+            - Loads the image from the drag event.
+            - Creates a QLabel for the image and another for the text label.
+            - Combines them in a QWidget with a vertical layout.
+            - Scales the image for display.
+            - Calculates the logical position (independent of zoom/pan).
+            - Stores all properties in the images dictionary for later manipulation.
         """
         if event.mimeData().hasFormat("image/png"):
             byte_array = event.mimeData().data("image/png")
@@ -163,6 +191,16 @@ class Canvas(QFrame):
     def resizeImageAtDropEvent(self, image_label, scale_factor):
         """
         Resizes the image label based on the scale factor.
+
+        What it does:
+            - Changes the displayed size of an image after it has been dropped on the canvas.
+            - Updates the internal metadata to reflect the new size.
+
+        How:
+            - Looks up the original pixmap for the image.
+            - Calculates the new width and height using the scale factor.
+            - Scales the pixmap smoothly and updates the QLabel.
+            - Updates the 'size' property in the images dictionary.
         """
         if image_label in self.images:
             data = self.images[image_label]
@@ -182,12 +220,25 @@ class Canvas(QFrame):
     def set_image_border_color(self, label, color):
         """
         Sets the border color for the image label.
+
+        What it does:
+            - Visually highlights an image label, e.g., to indicate selection.
+
+        How:
+            - Sets the QLabel's stylesheet to use the specified color for its border.
         """
         label.setStyleSheet(f"border: 2px solid {color.name()};")
 
     def dragEnterEvent(self, event):
         """
         Handles drag enter event to accept image drops.
+
+        What it does:
+            - Allows the canvas to accept PNG images dragged from outside.
+
+        How:
+            - Checks the mime type of the dragged data.
+            - Calls acceptProposedAction() if the data is a PNG image.
         """
         if event.mimeData().hasFormat("image/png"):
             event.acceptProposedAction()
@@ -195,19 +246,35 @@ class Canvas(QFrame):
     def createImageLabel(self, pixmap, position):
         """
         Utility method to create image labels.
+
+        What it does:
+            - Creates a QLabel to display an image at a given position.
+
+        How:
+            - Sets the pixmap, moves the label, shows it, and raises it above other widgets.
         """
         image_label = QLabel(self)
         image_label.setPixmap(pixmap)
         image_label.move(position)
         image_label.show()
-        image_label.raise_()  # Raise the image label to place it on top of the grid
+        image_label.raise_()
         return image_label
 
     def mousePressEvent(self, event):
         """
         Handles mouse press event.
-        - Selects/deselects images.
-        - Initiates resizing of images.
+
+        What it does:
+            - Selects or deselects images.
+            - Initiates resizing of images if a resize corner is clicked.
+            - Handles right-click to show the context menu.
+            - Handles panning if adjust mode is active.
+
+        How:
+            - If in adjust mode and left mouse button is pressed, starts panning.
+            - Otherwise, checks if an image was clicked.
+            - If right-click, shows the context menu for that image.
+            - If left-click, selects the image, highlights it, and prepares for move/resize.
         """
         if self.adjust_mode and event.button() == Qt.LeftButton:
             self.setCursor(Qt.ClosedHandCursor)
@@ -244,7 +311,14 @@ class Canvas(QFrame):
     def mouseMoveEvent(self, event):
         """
         Handles mouse move event.
-        - Moves or resizes the selected image.
+
+        What it does:
+            - Moves or resizes the selected image as the mouse moves.
+            - Handles panning if adjust mode is active.
+
+        How:
+            - If in adjust mode and panning, updates the grid offset and all image positions.
+            - If an image is selected, moves or resizes it based on the mouse position and updates its logical position.
         """
         if self.adjust_mode and self.last_pan_point is not None:
             delta = event.pos() - self.last_pan_point
@@ -273,7 +347,15 @@ class Canvas(QFrame):
     def mouseReleaseEvent(self, event):
         """
         Handles mouse release event.
-        - Finalizes resizing or image position.
+
+        What it does:
+            - Finalizes resizing or image position.
+            - Resets selection and border color.
+            - Ends panning if in adjust mode.
+
+        How:
+            - If in adjust mode, ends panning.
+            - Otherwise, updates the logical position of the image and resets selection/border color.
         """
         if self.adjust_mode and event.button() == Qt.LeftButton:
             self.setCursor(Qt.OpenHandCursor)
@@ -301,6 +383,13 @@ class Canvas(QFrame):
     def get_resize_corner(self, pos, image_label):
         """
         Determines which resize corner is clicked.
+
+        What it does:
+            - Checks if the mouse is within a small area at each corner of the image’s geometry.
+            - Returns the corner name if the mouse is within a corner region.
+
+        How:
+            - Uses QRect to define the clickable area for each corner.
         """
         rect = image_label.geometry()
         corner_size = 10
@@ -317,6 +406,13 @@ class Canvas(QFrame):
     def resize_image(self, pos, properties):
         """
         Resizes the selected image.
+
+        What it does:
+            - Adjusts the geometry and pixmap of the image label based on mouse movement and which corner is being dragged.
+
+        How:
+            - Sets the appropriate corner of the image’s rectangle to the new mouse position.
+            - Updates the pixmap to match the new size.
         """
         resize_corner = properties["resize_corner"]
         rect = self.active_image.geometry()
@@ -337,7 +433,12 @@ class Canvas(QFrame):
     def keyPressEvent(self, event):
         """
         Handles key press events.
-        - Zooms in/out on '+'/'-' key press.
+
+        What it does:
+            - Zooms in/out on '+'/'-' key press.
+
+        How:
+            - Calls zoomIn or zoomOut on '+' or '-' key presses.
         """
         if event.key() == Qt.Key_Plus:
             self.zoomIn()
@@ -349,6 +450,12 @@ class Canvas(QFrame):
     def zoomIn(self):
         """
         Zooms in by increasing the scale factor.
+
+        What it does:
+            - All images and the grid are scaled up.
+
+        How:
+            - Adjusts the scaleFactor, then calls updateImageScaling and repaints.
         """
         self.scaleFactor *= 1.1
         self.updateImageScaling()
@@ -357,15 +464,29 @@ class Canvas(QFrame):
     def zoomOut(self):
         """
         Zooms out by decreasing the scale factor.
+
+        What it does:
+            - All images and the grid are scaled down.
+
+        How:
+            - Adjusts the scaleFactor, then calls updateImageScaling and repaints.
         """
         self.scaleFactor /= 1.1
         self.updateImageScaling()
         self.update()
 
     def resetView(self):
-        
         """
         Adjusts the view so all objects are visible within the canvas.
+
+        What it does:
+            - Calculates the bounding box of all images and fits them to the view.
+            - Adds a margin for better appearance.
+
+        How:
+            - Finds the bounding rectangle of all images.
+            - Computes a scale and offset to fit everything with a margin.
+            - Calls updateImageScaling and repaints.
         """
         if not self.images:
             return
@@ -418,6 +539,15 @@ class Canvas(QFrame):
     def updateImageScaling(self):
         """
         Updates the size and position of images based on the current scale factor and grid offset.
+
+        What it does:
+            - Called after zooming, panning, or resetting the view.
+            - For each image, calculates its new screen position and size from its logical position and the current scale/offset.
+            - Updates the pixmap and widget position.
+
+        How:
+            - Iterates over all images and applies the current scale and offset to their position and size.
+            - Updates the QLabel pixmap and container position.
         """
         for container, properties in self.images.items():
             # Logical position and size
@@ -454,6 +584,10 @@ class Canvas(QFrame):
     def paintEvent(self, event):
         """
         Draws the grid on the canvas.
+
+        What it does:
+            - Called automatically by Qt when the widget needs to be repainted.
+            - Uses QPainter to draw the grid.
         """
         super().paintEvent(event)
         painter = QPainter(self)
@@ -462,6 +596,13 @@ class Canvas(QFrame):
     def drawGrid(self, painter):
         """
         Draws the grid lines on the canvas.
+
+        What it does:
+            - The grid spacing and opacity are adjusted based on the zoom level.
+            - Draws vertical and horizontal lines at regular intervals.
+
+        How:
+            - Uses QPainter to draw faint lines at intervals determined by scaleFactor.
         """
         grid_color = QColor(60, 70, 80)
         grid_opacity = 0.2
@@ -483,6 +624,12 @@ class Canvas(QFrame):
     def raise_image(self, image_label):
         """
         Raises the selected image above other images.
+
+        What it does:
+            - Ensures the selected image is not hidden behind others.
+
+        How:
+            - Calls raise_() on the selected image and lower() on the others.
         """
         image_label.raise_()
         for label in self.images:
@@ -492,6 +639,12 @@ class Canvas(QFrame):
     def delete_image(self, image_label):
         """
         Deletes the selected image from the canvas.
+
+        What it does:
+            - Removes the image from the dictionary and deletes its widget.
+
+        How:
+            - Deletes the widget and removes its entry from images.
         """
         if image_label in self.images:
             del self.images[image_label]
@@ -502,12 +655,29 @@ class Canvas(QFrame):
     def set_image_border_color(self, image_label, color):
         """
         Sets the border color for the image label.
+
+        What it does:
+            - Used for selection highlighting.
+
+        How:
+            - Sets the QLabel's stylesheet to use the specified color for its border.
         """
         image_label.setStyleSheet(f"border: 2px solid {color.name()}; border-radius: 0px;")
 
     def showContextMenu(self, event, image_label):
         """
         Shows a modern context menu next to the right-clicked image for multiple actions.
+
+        What it does:
+            - Provides Delete, Duplicate, and Properties actions.
+            - Uses a custom stylesheet for a modern look.
+            - Executes the selected action based on user choice.
+
+        How:
+            - Creates a QMenu and adds actions for Delete, Duplicate, and Properties, separated by lines.
+            - Sets a custom stylesheet for the menu to control its appearance.
+            - Shows the menu at the mouse's global position.
+            - Checks which action the user selected and calls the corresponding method.
         """
         menu = QMenu(self)
         delete_action = menu.addAction("Delete")
@@ -556,6 +726,23 @@ class Canvas(QFrame):
     def toggleAdjustMode(self):
         """
         Toggles the adjust mode on and off.
+
+        What it does:
+            - Switches between normal mode and adjust (panning) mode for the canvas.
+            - In adjust mode, the user can pan (move) the entire canvas by dragging.
+            - Disables zoom and reset buttons while in adjust mode to prevent conflicting actions.
+            - Changes the mouse cursor to indicate panning is active.
+
+        How:
+            - Flips the boolean flag self.adjust_mode.
+            - If enabling adjust mode:
+                - Sets the cursor to an open hand (Qt.OpenHandCursor) to indicate panning.
+                - Disables the zoom in, zoom out, and reset view buttons.
+                - Checks the adjust button to show it's active.
+            - If disabling adjust mode:
+                - Restores the cursor to the default arrow.
+                - Enables the zoom and reset buttons.
+                - Unchecks the adjust button.
         """
         self.adjust_mode = not self.adjust_mode
         if self.adjust_mode:

@@ -8,6 +8,12 @@ def main():
     - Initializes the QApplication.
     - Creates and shows the main window.
     - Starts the event loop.
+
+    How:
+        - QApplication is required for any PyQt5 application; it manages application-wide resources and settings.
+        - ProcessFlowEditor is your custom main window class (imported from UI_Interface.main_window).
+        - window.show() makes the main window visible on the screen.
+        - sys.exit(app.exec_()) starts the Qt event loop and ensures a clean exit when the window is closed.
     """
     app = QApplication(sys.argv)
     window = ProcessFlowEditor()  # Main application window

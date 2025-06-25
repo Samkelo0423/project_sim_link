@@ -7,11 +7,29 @@ import os
 class DraggableImageLabel(QLabel):
     """
     QLabel subclass for draggable image icons in the tool palette.
-    Supports drag-and-drop with a bordered preview.
+
+    What it does:
+        - Displays an image icon that can be dragged from the palette onto a canvas.
+        - Provides a bordered preview of the image during drag-and-drop.
+
+    How:
+        - Loads and scales the image to a standard size for consistent appearance.
+        - Implements mousePressEvent to start a drag operation with the image and its label.
+        - Uses a helper to create a bordered pixmap for the drag preview.
     """
     def __init__(self, image_path):
+        """
+        Initializes the draggable image label.
+
+        What it does:
+            - Loads the image from the given path and scales it for display in the palette.
+            - Stores the scaled pixmap and image path for later use.
+
+        How:
+            - Loads the image as a QPixmap and scales it to 100x100 (keeping aspect ratio).
+            - Sets the pixmap, alignment, and enables scaling for the label.
+        """
         super().__init__()
-        # Load and scale the image to a standard size for the palette
         pixmap = QPixmap(image_path)
         pixmap = pixmap.scaled(
             100,
@@ -29,6 +47,14 @@ class DraggableImageLabel(QLabel):
     def create_bordered_pixmap(self, pixmap: QPixmap) -> QPixmap:
         """
         Returns a scaled image with a black border for drag preview.
+
+        What it does:
+            - Creates a new pixmap with a black border around the image for visual feedback during drag.
+
+        How:
+            - Scales the image to the target size.
+            - Paints the image onto a transparent pixmap with extra space for the border.
+            - Draws a black rectangle around the image.
         """
         scaled = pixmap.scaled(
             self.target_size,
@@ -57,6 +83,19 @@ class DraggableImageLabel(QLabel):
     def mousePressEvent(self, event):
         """
         Initiates a drag-and-drop operation with a bordered image preview.
+
+        What it does:
+            - Starts a drag operation when the user presses the left mouse button on the image.
+            - Packages the image data and its label for use in the drop target.
+            - Shows a bordered preview of the image under the cursor during drag.
+
+        How:
+            - Creates a QDrag object and QMimeData for the image.
+            - Saves the image as PNG data in the mime data.
+            - Adds the base filename as text in the mime data.
+            - Sets the drag pixmap to a bordered version of the image.
+            - Sets the drag hotspot to the center of the preview.
+            - Executes the drag operation.
         """
         if event.button() == Qt.LeftButton:
             drag = QDrag(self)
