@@ -7,10 +7,9 @@ from PyQt5.QtWidgets import (
     QWidget,
     QMenu,
 )
-from PyQt5.QtGui import QGuiApplication, QPixmap
-from PyQt5.QtCore import Qt, QPoint, QRect, QEvent, QPointF
-from PyQt5.QtGui import QPixmap, QPainter, QColor, QCursor
-import os
+from PyQt5.QtGui import QGuiApplication, QPixmap ,QPen , QPainterPath
+from PyQt5.QtCore import Qt, QPoint, QRect, QPointF
+from PyQt5.QtGui import QPixmap, QPainter, QColor
 
 class Canvas(QFrame):
     def __init__(self, parent=None):
@@ -35,6 +34,10 @@ class Canvas(QFrame):
         self.gridVisible = True
         self.adjust_mode = False
         self.last_pan_point = None
+        self.connecting = False
+        self.connection_start = None
+        self.connection_preview_pos = None
+        self.connections = []  # Each: {'start': widget, 'end': widget, 'type': 'data'|'action', 'label': str, 'port': int}
         self.grid_offset = QPoint(0, 0)
         screen = QGuiApplication.primaryScreen().availableGeometry()
         self.screen_width = screen.width()
@@ -276,6 +279,56 @@ class Canvas(QFrame):
             - If right-click, shows the context menu for that image.
             - If left-click, selects the image, highlights it, and prepares for move/resize.
         """
+
+        if self.connecting:
+            for container in self.images:
+                if container.geometry().contains(event.pos()) and container != self.connection_start:
+                    # --- Simulink-style connection logic ---
+                    start_props = self.images[self.connection_start]
+                    end_props = self.images[container]
+
+                    # Default: solid data line
+                    conn_type = 'data'
+                    label = ''
+                    port = 0
+                    total_ports = 1
+
+                    # If block logic for action/dashed lines
+                    if start_props.get("text_label") and "if" in start_props["text_label"].text().lower():
+                        conn_type = 'action'
+                        # Cycle through output ports for If block
+                        port = len([c for c in self.connections if c['start'] == self.connection_start])
+                        total_ports = 3
+                        if port == 0:
+                            label = "if(u1 > 0)"
+                        elif port == 1:
+                            label = "elseif(u2 > 0)"
+                        else:
+                            label = "else"
+
+                    self.connections.append({
+                        'start': self.connection_start,
+                        'end': container,
+                        'type': conn_type,
+                        'label': label,
+                        'port': port,
+                        'total_ports': total_ports
+                    })
+
+                    self.connecting = False
+                    self.connection_start = None
+                    self.connection_preview_pos = None
+                    self.setCursor(Qt.ArrowCursor)
+                    self.update()
+                    return
+            # If not clicked on another object, cancel connection
+            self.connecting = False
+            self.connection_start = None
+            self.connection_preview_pos = None
+            self.setCursor(Qt.ArrowCursor)
+            self.update()
+            return
+
         if self.adjust_mode and event.button() == Qt.LeftButton:
             self.setCursor(Qt.ClosedHandCursor)
             self.last_pan_point = event.pos()
@@ -320,6 +373,12 @@ class Canvas(QFrame):
             - If in adjust mode and panning, updates the grid offset and all image positions.
             - If an image is selected, moves or resizes it based on the mouse position and updates its logical position.
         """
+        if self.connecting and self.connection_start:
+            self.connection_preview_pos = event.pos()
+            self.update()
+            return
+
+
         if self.adjust_mode and self.last_pan_point is not None:
             delta = event.pos() - self.last_pan_point
             self.last_pan_point = event.pos()
@@ -343,6 +402,7 @@ class Canvas(QFrame):
                     scaled_x = int(new_logical_pos.x() * self.scaleFactor) + self.grid_offset.x()
                     scaled_y = int(new_logical_pos.y() * self.scaleFactor) + self.grid_offset.y()
                     self.active_image.move(scaled_x, scaled_y)
+                    self.update()
 
     def mouseReleaseEvent(self, event):
         """
@@ -446,6 +506,25 @@ class Canvas(QFrame):
             self.zoomOut()
         else:
             super().keyPressEvent(event)
+    
+    def connect_line(self, image_label):
+        """
+        Initiates a connection line from the selected image.
+
+        What it does:
+            - Starts a connection line from the center of the selected image.
+            - Prepares to draw a preview line as the mouse moves.
+
+        How:
+            - Sets connecting to True and stores the start position.
+            - Updates the cursor to indicate a connection is being made.
+        """
+        if image_label in self.images:
+            self.connecting = True
+            self.connection_start = image_label
+            self.connection_preview_pos = None
+            self.setCursor(Qt.CrossCursor)
+            self.update()
 
     def zoomIn(self):
         """
@@ -592,6 +671,141 @@ class Canvas(QFrame):
         super().paintEvent(event)
         painter = QPainter(self)
         self.drawGrid(painter)
+        for conn in self.connections:
+            start = conn['start']
+            end = conn['end']
+            conn_type = conn.get('type', 'data')
+            label = conn.get('label', '')
+            port = conn.get('port', 0)
+            total_ports = conn.get('total_ports', 1)
+
+            start_rect = start.geometry()
+            end_rect = end.geometry()
+
+            start_pos = (start_rect.right(), start_rect.top() + start_rect.height() // 2)
+            end_pos = (end_rect.left(), end_rect.top() + end_rect.height() // 2)
+
+            offset = 24
+            gap = 60  # Large enough to always clear the blocks
+
+            path = QPainterPath()
+            path.moveTo(*start_pos)
+
+            if start_pos[0] < end_pos[0] - offset:
+                # Standard left-to-right
+                p1 = (start_pos[0] + offset, start_pos[1])
+                p2 = (end_pos[0] - offset, end_pos[1])
+                if abs(start_pos[1] - end_pos[1]) < 2 * offset:
+                    path.lineTo(*p1)
+                    path.lineTo(p1[0], end_pos[1])
+                    path.lineTo(*p2)
+                else:
+                    mid_y = (start_pos[1] + end_pos[1]) // 2
+                    path.lineTo(*p1)
+                    path.lineTo(p1[0], mid_y)
+                    path.lineTo(p2[0], mid_y)
+                    path.lineTo(*p2)
+                path.lineTo(*end_pos)
+                arrow_from = p2
+            else:
+                # Loopback or feedback
+                # Always go above both blocks if possible
+                top = min(start_rect.top(), end_rect.top())
+                p1 = (start_pos[0] + offset, start_pos[1])
+                p2 = (p1[0], top - gap)
+                p3 = (end_rect.left() - gap, p2[1])
+                p4 = (p3[0], end_pos[1])
+                p5 = (end_pos[0] - offset, end_pos[1])
+                path.lineTo(*p1)
+                path.lineTo(*p2)
+                path.lineTo(*p3)
+                path.lineTo(*p4)
+                path.lineTo(*p5)
+                path.lineTo(*end_pos)
+                arrow_from = p5
+
+            pen = QPen(QColor(0, 120, 255), 3)
+            if conn_type == 'action':
+                pen.setStyle(Qt.DashLine)
+            painter.setPen(pen)
+            painter.setBrush(Qt.NoBrush)
+            painter.drawPath(path)
+            self.draw_arrow(painter, arrow_from, end_pos)
+            if label:
+                painter.setPen(QColor(0,0,0))
+                painter.drawText(start_pos[0]+10, start_pos[1]-10, label)
+
+         # Draw preview line if connecting
+        if self.connecting and self.connection_start and self.connection_preview_pos:
+            start_rect = self.connection_start.geometry()
+            start_pos = (start_rect.right(), start_rect.top() + start_rect.height() // 2)
+            end_pos = (self.connection_preview_pos.x(), self.connection_preview_pos.y())
+            offset = 34
+            gap = 60
+            path = QPainterPath()
+            path.moveTo(*start_pos)
+            if start_pos[0] < end_pos[0] - offset:
+                p1 = (start_pos[0] + offset, start_pos[1])
+                p2 = (end_pos[0] - offset, end_pos[1])
+                if abs(start_pos[1] - end_pos[1]) < 2 * offset:
+                    path.lineTo(*p1)
+                    path.lineTo(p1[0], end_pos[1])
+                    path.lineTo(*p2)
+                else:
+                    mid_y = (start_pos[1] + end_pos[1]) // 2
+                    path.lineTo(*p1)
+                    path.lineTo(p1[0], mid_y)
+                    path.lineTo(p2[0], mid_y)
+                    path.lineTo(*p2)
+                path.lineTo(*end_pos)
+                arrow_from = p2
+            else:
+                above = start_rect.top() > end_pos[1] + gap
+                below = start_rect.bottom() + gap < end_pos[1]
+                if above:
+                    p1 = (start_pos[0] + offset, start_pos[1])
+                    p2 = (p1[0], start_rect.top() - gap)
+                    p3 = (end_pos[0] - gap, p2[1])
+                    p4 = (p3[0], end_pos[1])
+                    p5 = (end_pos[0] - offset, end_pos[1])
+                    path.lineTo(*p1)
+                    path.lineTo(*p2)
+                    path.lineTo(*p3)
+                    path.lineTo(*p4)
+                    path.lineTo(*p5)
+                    path.lineTo(*end_pos)
+                    arrow_from = p5
+                elif below:
+                    p1 = (start_pos[0] + offset, start_pos[1])
+                    p2 = (p1[0], start_rect.bottom() + gap)
+                    p3 = (end_pos[0] - gap, p2[1])
+                    p4 = (p3[0], end_pos[1])
+                    p5 = (end_pos[0] - offset, end_pos[1])
+                    path.lineTo(*p1)
+                    path.lineTo(*p2)
+                    path.lineTo(*p3)
+                    path.lineTo(*p4)
+                    path.lineTo(*p5)
+                    path.lineTo(*end_pos)
+                    arrow_from = p5
+                else:
+                    p1 = (start_pos[0] + offset, start_pos[1])
+                    p2 = (p1[0], start_pos[1] - gap)
+                    p3 = (end_pos[0] - gap, p2[1])
+                    p4 = (p3[0], end_pos[1])
+                    p5 = (end_pos[0] - offset, end_pos[1])
+                    path.lineTo(*p1)
+                    path.lineTo(*p2)
+                    path.lineTo(*p3)
+                    path.lineTo(*p4)
+                    path.lineTo(*p5)
+                    path.lineTo(*end_pos)
+                    arrow_from = p5
+            pen = QPen(QColor(0, 120, 255), 2, Qt.DashLine)
+            painter.setPen(pen)
+            painter.setBrush(Qt.NoBrush)
+            painter.drawPath(path)
+            self.draw_arrow(painter, arrow_from, end_pos)
 
     def drawGrid(self, painter):
         """
@@ -682,9 +896,7 @@ class Canvas(QFrame):
         menu = QMenu(self)
         delete_action = menu.addAction("Delete")
         menu.addSeparator()
-        duplicate_action = menu.addAction("Duplicate")
-        menu.addSeparator()
-        properties_action = menu.addAction("Properties")
+        connect_line = menu.addAction("Connect Line")
 
         # Modern style: dark, rounded, with padding and clear separators
         menu.setStyleSheet("""
@@ -718,10 +930,39 @@ class Canvas(QFrame):
         action = menu.exec_(event.globalPos())
         if action == delete_action:
             self.delete_image(image_label)
-        elif action == duplicate_action:
-            self.duplicate_image(image_label)
-        elif action == properties_action:
-            self.show_properties_dialog(image_label)
+        elif action == connect_line:
+            self.connect_line(image_label)
+       
+
+    def toggleAdjustMode(self):
+        """
+        Toggles the adjust mode on and off.
+
+        What it does:
+            - Switches between normal mode and adjust (panning) mode for the canvas.
+            - In adjust mode, the user can pan (move) the entire canvas by dragging.
+            - Disables zoom and reset buttons while in adjust mode to prevent conflicting actions.
+            - Changes the mouse cursor to indicate panning is active.
+
+        How:
+            - Flips the boolean flag self.adjust_mode.
+            - If enabling adjust mode:
+                border-radius: 6px;
+            }
+            QMenu::separator {
+                height: 1px;
+                background: #444;
+                margin-left: 16px;
+                margin-right: 16px;
+            }
+        """ 
+        # Show the context menu at the calculated position
+        action = menu.exec_(event.globalPos())
+        if action == delete_action:
+            self.delete_image(image_label)
+        elif action == connect_line:
+            self.connect_line(image_label)
+       
 
     def toggleAdjustMode(self):
         """
@@ -759,3 +1000,35 @@ class Canvas(QFrame):
             self.zoom_out_button.setDisabled(False)
             self.reset_view_button.setDisabled(False)
             self.adjust_button.setChecked(False)
+
+    def get_port_pos(self, widget, side, port_idx=0, total_ports=1):
+        rect = widget.geometry()
+        if side == 'left':
+            y = rect.top() + int((rect.height()/(total_ports+1)) * (port_idx+1))
+            return rect.left(), y
+        elif side == 'right':
+            y = rect.top() + int((rect.height()/(total_ports+1)) * (port_idx+1))
+            return rect.right(), y
+        elif side == 'bottom':
+            x = rect.left() + int((rect.width()/(total_ports+1)) * (port_idx+1))
+            return x, rect.bottom()
+        return rect.center().x(), rect.center().y()
+
+    def draw_arrow(self, painter, p1, p2):
+        # Draw a simple arrow at p2 pointing from p1
+        import math
+        angle = math.atan2(p2[1]-p1[1], p2[0]-p1[0])
+        arrow_size = 12
+        dx = arrow_size * math.cos(angle - math.pi/6)
+        dy = arrow_size * math.sin(angle - math.pi/6)
+        dx2 = arrow_size * math.cos(angle + math.pi/6)
+        dy2 = arrow_size * math.sin(angle + math.pi/6)
+        points = [
+            QPoint(p2[0], p2[1]),
+            QPoint(int(p2[0] - dx), int(p2[1] - dy)),
+            QPoint(int(p2[0] - dx2), int(p2[1] - dy2)),
+        ]
+        painter.setBrush(QColor(0, 120, 255))
+        painter.drawPolygon(*points)
+
+
