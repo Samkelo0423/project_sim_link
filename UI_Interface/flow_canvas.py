@@ -12,18 +12,32 @@ from PyQt5.QtCore import Qt, QPoint, QRect, QPointF
 from PyQt5.QtGui import QPixmap, QPainter, QColor
 
 class Canvas(QFrame):
+    """
+    The main interactive canvas for the flowsheet editor.
+
+    What it does:
+        - Provides a workspace for users to visually build, edit, and connect process units.
+        - Supports drag-and-drop, zooming, panning, selection, resizing, and connection of units.
+        - Manages all graphical elements and user interactions for flowsheet design.
+
+    How:
+        - Inherits from QFrame and manages its own widgets, drawing, and event handling.
+        - Stores all process units and connections in internal dictionaries and lists.
+        - Handles mouse, keyboard, and drag-and-drop events to provide a rich, interactive experience.
+    """
+
     def __init__(self, parent=None):
         """
         Initializes the Canvas widget.
 
         What it does:
-            - Sets up the user interface and enables drag-and-drop.
-            - Initializes all attributes for managing images, zoom, grid, and panning.
+            - Sets up the user interface and enables drag-and-drop for process units.
+            - Initializes all attributes for managing images, zoom, grid, panning, and connections.
 
         How:
-            - Calls setupUI() to create buttons and layouts.
-            - Prepares dictionaries and variables for image management and interaction.
-            - Gets the screen size for potential scaling.
+            - Calls setupUI() to create control buttons and layouts.
+            - Prepares dictionaries and variables for image and connection management.
+            - Gets the screen size for scaling and layout purposes.
         """
         super().__init__(parent)
         self.setAcceptDrops(True)
@@ -46,10 +60,11 @@ class Canvas(QFrame):
 
     def setupUI(self):
         """
-        Sets up the user interface.
+        Sets up the user interface controls for the canvas.
 
         What it does:
             - Creates and arranges the main control buttons (zoom in, zoom out, reset, adjust) at the top of the canvas.
+            - Ensures controls are visually consistent and accessible.
 
         How:
             - Uses a vertical layout for the main widget.
@@ -76,10 +91,11 @@ class Canvas(QFrame):
 
         What it does:
             - Creates a QPushButton with a modern style and connects it to a handler function.
+            - Optionally makes the button checkable (toggleable) for modes like adjust/pan.
 
         How:
             - Sets button size, style, and click handler.
-            - Optionally makes the button checkable (toggleable).
+            - Applies a custom stylesheet for appearance.
         """
         button = QPushButton(text)
         button.setFixedSize(80, 32)
@@ -114,17 +130,17 @@ class Canvas(QFrame):
         Handles drop event to add dropped images to the canvas.
 
         What it does:
-            - Loads dropped image and creates a QWidget with image and label.
-            - Stores image properties in the dictionary for later manipulation.
-            - Scales and centers the image at the drop location.
+            - Allows users to drag process unit images onto the canvas.
+            - Each dropped image is wrapped in a QWidget with a label for easy identification.
+            - Images are scaled and centered at the drop location.
+            - Stores all properties for later manipulation and interaction.
 
         How:
             - Loads the image from the drag event.
             - Creates a QLabel for the image and another for the text label.
             - Combines them in a QWidget with a vertical layout.
-            - Scales the image for display.
             - Calculates the logical position (independent of zoom/pan).
-            - Stores all properties in the images dictionary for later manipulation.
+            - Stores all properties in the images dictionary.
         """
         if event.mimeData().hasFormat("image/png"):
             byte_array = event.mimeData().data("image/png")
@@ -226,7 +242,7 @@ class Canvas(QFrame):
         Sets the border color for the image label.
 
         What it does:
-            - Visually highlights an image label, e.g., to indicate selection.
+            - Visually highlights an image label, e.g., to indicate selection or focus.
 
         How:
             - Sets the QLabel's stylesheet to use the specified color for its border.
@@ -253,6 +269,7 @@ class Canvas(QFrame):
 
         What it does:
             - Creates a QLabel to display an image at a given position.
+            - Ensures images are always visible and on top.
 
         How:
             - Sets the pixmap, moves the label, shows it, and raises it above other widgets.
@@ -266,19 +283,21 @@ class Canvas(QFrame):
 
     def mousePressEvent(self, event):
         """
-        Handles mouse press event.
+        Handles mouse press events for selection, resizing, panning, and connection.
 
         What it does:
             - Selects or deselects images.
             - Initiates resizing of images if a resize corner is clicked.
-            - Handles right-click to show the context menu.
+            - Handles right-click to show the context menu for images or connections.
             - Handles panning if adjust mode is active.
+            - Handles connection creation between process units.
 
         How:
             - If in adjust mode and left mouse button is pressed, starts panning.
-            - Otherwise, checks if an image was clicked.
-            - If right-click, shows the context menu for that image.
+            - Otherwise, checks if an image or connection was clicked.
+            - If right-click, shows the context menu for that image or connection.
             - If left-click, selects the image, highlights it, and prepares for move/resize.
+            - If connecting, handles connection logic between units.
         """
 
         # --- Check if right-click is on a connection ---
@@ -372,15 +391,17 @@ class Canvas(QFrame):
 
     def mouseMoveEvent(self, event):
         """
-        Handles mouse move event.
+        Handles mouse move events for moving, resizing, panning, and connection preview.
 
         What it does:
             - Moves or resizes the selected image as the mouse moves.
             - Handles panning if adjust mode is active.
+            - Updates connection preview line if connecting.
 
         How:
             - If in adjust mode and panning, updates the grid offset and all image positions.
             - If an image is selected, moves or resizes it based on the mouse position and updates its logical position.
+            - If connecting, updates the preview line position.
         """
         if self.connecting and self.connection_start:
             self.connection_preview_pos = event.pos()
@@ -415,7 +436,7 @@ class Canvas(QFrame):
 
     def mouseReleaseEvent(self, event):
         """
-        Handles mouse release event.
+        Handles mouse release events to finalize actions.
 
         What it does:
             - Finalizes resizing or image position.
@@ -478,6 +499,7 @@ class Canvas(QFrame):
 
         What it does:
             - Adjusts the geometry and pixmap of the image label based on mouse movement and which corner is being dragged.
+            - Allows users to resize process units interactively.
 
         How:
             - Sets the appropriate corner of the image’s rectangle to the new mouse position.
@@ -501,13 +523,15 @@ class Canvas(QFrame):
 
     def keyPressEvent(self, event):
         """
-        Handles key press events.
+        Handles key press events for keyboard shortcuts.
 
         What it does:
             - Zooms in/out on '+'/'-' key press.
+            - Passes other key events to the base class.
 
         How:
             - Calls zoomIn or zoomOut on '+' or '-' key presses.
+            - Calls the superclass handler for other keys.
         """
         if event.key() == Qt.Key_Plus:
             self.zoomIn()
@@ -540,10 +564,13 @@ class Canvas(QFrame):
         Zooms in by increasing the scale factor.
 
         What it does:
-            - All images and the grid are scaled up.
+            - Enlarges all images (process units) and the grid, allowing for detailed editing and alignment.
+            - Maintains the relative positions and sizes of all elements for a consistent user experience.
 
         How:
-            - Adjusts the scaleFactor, then calls updateImageScaling and repaints.
+            - Multiplies the current scaleFactor by a fixed ratio (1.1).
+            - Calls updateImageScaling() to recalculate and apply new positions and sizes for all images.
+            - Triggers a repaint of the canvas to reflect the new zoom level.
         """
         self.scaleFactor *= 1.1
         self.updateImageScaling()
@@ -554,10 +581,16 @@ class Canvas(QFrame):
         Zooms out by decreasing the scale factor.
 
         What it does:
-            - All images and the grid are scaled down.
+            - Reduces the scale of all process unit images and the alignment grid on the canvas.
+            - Provides a wider view of the flowsheet, allowing the user to see more of the workspace at once.
+            - Maintains the relative positions and proportions of all elements, so the layout remains consistent.
+            - Ensures that all interactive features (drag, drop, connect, etc.) continue to work seamlessly at the new zoom level.
 
         How:
-            - Adjusts the scaleFactor, then calls updateImageScaling and repaints.
+            - Divides the current scaleFactor by a fixed ratio (1.1), making all elements smaller.
+            - Calls updateImageScaling() to recalculate the screen positions and sizes of all process units and their labels based on the new scale.
+            - Triggers a repaint of the canvas to visually update the grid, images, and connections at the new zoom level.
+            - Keeps the logical positions of all objects unchanged, so zooming does not affect the underlying data or connections.
         """
         self.scaleFactor /= 1.1
         self.updateImageScaling()
@@ -570,11 +603,12 @@ class Canvas(QFrame):
         What it does:
             - Calculates the bounding box of all images and fits them to the view.
             - Adds a margin for better appearance.
+            - Useful for quickly locating all elements after extensive editing or navigation.
 
         How:
-            - Finds the bounding rectangle of all images.
+            - Finds the bounding rectangle of all images in logical coordinates.
             - Computes a scale and offset to fit everything with a margin.
-            - Calls updateImageScaling and repaints.
+            - Calls updateImageScaling() and triggers a repaint to apply the new view.
         """
         if not self.images:
             return
@@ -629,13 +663,12 @@ class Canvas(QFrame):
         Updates the size and position of images based on the current scale factor and grid offset.
 
         What it does:
-            - Called after zooming, panning, or resetting the view.
-            - For each image, calculates its new screen position and size from its logical position and the current scale/offset.
-            - Updates the pixmap and widget position.
+            - Ensures that all process units and their labels are correctly positioned and sized after zooming or panning.
+            - Maintains visual consistency and alignment on the canvas.
 
         How:
-            - Iterates over all images and applies the current scale and offset to their position and size.
-            - Updates the QLabel pixmap and container position.
+            - Iterates through all images, recalculating their screen positions and sizes from logical coordinates.
+            - Scales the pixmap and updates the QLabel and container widget accordingly.
         """
         for container, properties in self.images.items():
             # Logical position and size
@@ -671,11 +704,17 @@ class Canvas(QFrame):
 
     def paintEvent(self, event):
         """
-        Draws the grid on the canvas.
+        Handles all custom drawing on the canvas, including the grid and connection lines.
 
         What it does:
-            - Called automatically by Qt when the widget needs to be repainted.
-            - Uses QPainter to draw the grid.
+            - Draws the alignment grid and all connection lines between process units.
+            - Renders connection labels and arrowheads for clarity.
+            - Shows a preview line when the user is in the process of connecting units.
+
+        How:
+            - Uses QPainter to render the grid and all connection paths.
+            - Applies different styles for data and action connections.
+            - Draws labels and arrowheads at appropriate positions.
         """
         super().paintEvent(event)
         painter = QPainter(self)
@@ -821,11 +860,12 @@ class Canvas(QFrame):
         Draws the grid lines on the canvas.
 
         What it does:
-            - The grid spacing and opacity are adjusted based on the zoom level.
-            - Draws vertical and horizontal lines at regular intervals.
+            - Provides a visual aid for aligning and positioning process units.
+            - The grid spacing and opacity automatically adjust based on the current zoom level.
 
         How:
-            - Uses QPainter to draw faint lines at intervals determined by scaleFactor.
+            - Uses QPainter to draw faint vertical and horizontal lines at intervals determined by scaleFactor.
+            - Applies a consistent color and opacity for a subtle, non-intrusive appearance.
         """
         grid_color = QColor(60, 70, 80)
         grid_opacity = 0.2
@@ -846,13 +886,15 @@ class Canvas(QFrame):
 
     def raise_image(self, image_label):
         """
-        Raises the selected image above other images.
+        Raises the selected image above all other images on the canvas.
 
         What it does:
-            - Ensures the selected image is not hidden behind others.
+            - Ensures the selected process unit is not visually obscured by others, especially when units overlap.
+            - Improves usability by always keeping the active selection on top.
 
         How:
-            - Calls raise_() on the selected image and lower() on the others.
+            - Calls raise_() on the selected image's container widget.
+            - Calls lower() on all other image containers to maintain stacking order.
         """
         image_label.raise_()
         for label in self.images:
@@ -864,10 +906,12 @@ class Canvas(QFrame):
         Deletes the selected image from the canvas.
 
         What it does:
-            - Removes the image from the dictionary and deletes its widget.
+            - Removes a process unit from the flowsheet.
+            - Updates the display immediately.
 
         How:
-            - Deletes the widget and removes its entry from images.
+            - Deletes the widget and removes its entry from the images dictionary.
+            - Clears the active selection and triggers a repaint.
         """
         if image_label in self.images:
             del self.images[image_label]
@@ -880,7 +924,7 @@ class Canvas(QFrame):
         Sets the border color for the image label.
 
         What it does:
-            - Used for selection highlighting.
+            - Used for selection highlighting and visual feedback.
 
         How:
             - Sets the QLabel's stylesheet to use the specified color for its border.
@@ -892,15 +936,13 @@ class Canvas(QFrame):
         Shows a modern context menu next to the right-clicked image for multiple actions.
 
         What it does:
-            - Provides Delete, Duplicate, and Properties actions.
-            - Uses a custom stylesheet for a modern look.
-            - Executes the selected action based on user choice.
+            - Provides user actions such as Delete and Connect Line for the selected process unit.
+            - Uses a custom-styled menu for a modern, visually appealing interface.
 
         How:
-            - Creates a QMenu and adds actions for Delete, Duplicate, and Properties, separated by lines.
-            - Sets a custom stylesheet for the menu to control its appearance.
-            - Shows the menu at the mouse's global position.
-            - Checks which action the user selected and calls the corresponding method.
+            - Creates a QMenu with relevant actions and separators.
+            - Applies a custom stylesheet for appearance.
+            - Executes the selected action based on user choice.
         """
         menu = QMenu(self)
         delete_action = menu.addAction("Delete")
@@ -945,12 +987,11 @@ class Canvas(QFrame):
 
     def toggleAdjustMode(self):
         """
-        Toggles the adjust mode on and off.
+        Toggles the adjust (pan) mode for the canvas.
 
         What it does:
-            - Switches between normal mode and adjust (panning) mode for the canvas.
-            - In adjust mode, the user can pan (move) the entire canvas by dragging.
-            - Disables zoom and reset buttons while in adjust mode to prevent conflicting actions.
+            - Allows the user to pan (move) the entire flowsheet by dragging the canvas.
+            - Disables zoom and reset controls while in adjust mode to prevent conflicts.
             - Changes the mouse cursor to indicate panning is active.
 
         How:
@@ -981,6 +1022,16 @@ class Canvas(QFrame):
             self.adjust_button.setChecked(False)
 
     def get_port_pos(self, widget, side, port_idx=0, total_ports=1):
+        """
+        Calculates the position of a connection port on a unit.
+
+        What it does:
+            - Supports multi-port units for advanced flowsheet logic.
+            - Used for precise connection line placement.
+
+        How:
+            - Computes the position of the port based on the widget geometry, side, and port index.
+        """
         rect = widget.geometry()
         if side == 'left':
             y = rect.top() + int((rect.height()/(total_ports+1)) * (port_idx+1))
@@ -994,7 +1045,16 @@ class Canvas(QFrame):
         return rect.center().x(), rect.center().y()
 
     def draw_arrow(self, painter, p1, p2):
-        # Draw a simple arrow at p2 pointing from p1
+        """
+        Draws an arrow at the end of a connection line.
+
+        What it does:
+            - Visual indication of flow direction between units.
+            - Consistent arrow style for all connections.
+
+        How:
+            - Calculates the angle between two points and draws a filled arrowhead at the end.
+        """
         import math
         angle = math.atan2(p2[1]-p1[1], p2[0]-p1[0])
         arrow_size = 12
@@ -1013,6 +1073,13 @@ class Canvas(QFrame):
     def connection_at(self, pos):
         """
         Returns the connection under the mouse position, if any.
+
+        What it does:
+            - Enables right-click selection and deletion of connection lines.
+            - Supports hit-testing for interactive editing.
+
+        How:
+            - Checks if the mouse position is near any connection path or segment.
         """
         threshold = 8  # pixels
         for conn in self.connections:
@@ -1028,7 +1095,28 @@ class Canvas(QFrame):
 
     def connection_path(self, conn):
         """
-        Returns a QPainterPath for the connection (same as in paintEvent).
+        Returns a QPainterPath representing the visual path of a connection line between two process units.
+
+        What it does:
+            - Computes the exact path used to visually render a connection line between two units on the canvas.
+            - Used for both drawing the connection in paintEvent and for hit-testing (detecting if the user clicked near a connection).
+            - Supports both standard (left-to-right, straight or elbow) and loopback (feedback) connections, adapting the path shape accordingly.
+            - Ensures that connections visually avoid overlapping units and maintain a clear, readable flowsheet layout.
+
+        How:
+            - Retrieves the geometry of the start and end widgets (process units) from the connection dictionary.
+            - Determines the appropriate start and end points for the connection, typically at the right edge of the start unit and the left edge of the end unit.
+            - Calculates intermediate control points for the path:
+                - For standard connections (start to the left of end), creates a path with horizontal and vertical segments, using offsets to avoid overlapping units and to create elbow-style lines.
+                - For loopback or feedback connections (start to the right of end), creates a path that loops above the units, with multiple control points to ensure the line does not intersect the units.
+            - Uses QPainterPath to construct the path by moving to the start point and adding line segments through all calculated control points to the end point.
+            - Returns the completed QPainterPath, which can be used for both drawing and hit-testing.
+
+        Parameters:
+            conn (dict): A dictionary containing connection information, including 'start' and 'end' widgets, connection 'type', and port information.
+
+        Returns:
+            QPainterPath: The path object representing the connection line between the two units.
         """
         from PyQt5.QtGui import QPainterPath
         start = conn['start']
@@ -1074,9 +1162,22 @@ class Canvas(QFrame):
         return path
 
     def connection_path_points(self, conn):
+        
         """
         Returns a list of points (tuples) along the connection path.
-        Used for hit-testing.
+    
+        What it does:
+            - Provides the exact coordinates of all key points (corners and endpoints) that make up the visual path of a connection line between two process units.
+            - Used for hit-testing (detecting if the user clicked near a connection) and for precise interaction, such as selecting or editing a connection line.
+            - Ensures that all segments of the connection path can be checked for proximity to the mouse or other objects, supporting robust user interaction.
+    
+        How:
+            - Retrieves the geometry of the start and end widgets (process units) from the connection dictionary.
+            - Determines the appropriate start and end points for the connection, typically at the right edge of the start unit and the left edge of the end unit.
+            - Calculates all intermediate control points that define the path:
+                - For standard connections (start to the left of end), adds points for horizontal and vertical segments, including elbows if needed.
+                - For loopback or feedback connections (start to the right of end), adds multiple points to create a looping path above the units, ensuring the line does not intersect the units.
+            - Returns a list of all these points (as tuples), in the order they appear along the path, so each segment can be individually checked or drawn.
         """
         start = conn['start']
         end = conn['end']
@@ -1109,6 +1210,12 @@ class Canvas(QFrame):
     def point_near_line(self, pt, p1, p2, threshold):
         """
         Returns True if pt (QPoint) is within threshold pixels of the line segment p1-p2.
+
+        What it does:
+            - Supports accurate selection of connection lines for editing.
+
+        How:
+            - Calculates the perpendicular distance from pt to the line segment and compares to threshold.
         """
         from PyQt5.QtCore import QPoint
         import math
@@ -1127,6 +1234,15 @@ class Canvas(QFrame):
     def showConnectionContextMenu(self, event):
         """
         Shows a context menu for a selected connection (line).
+
+        What it does:
+            - Allows users to delete connection lines via right-click.
+            - Modern, styled menu for consistency with unit context menus.
+
+        How:
+            - Creates a QMenu with a Delete Line action.
+            - Shows the menu at the mouse's global position.
+            - Removes the connection if Delete Line is selected.
         """
         menu = QMenu(self)
         delete_action = menu.addAction("Delete Line")
