@@ -1,3 +1,4 @@
+import math
 from PyQt5.QtWidgets import (
     QFrame,
     QLabel,
@@ -7,9 +8,20 @@ from PyQt5.QtWidgets import (
     QWidget,
     QMenu,
 )
-from PyQt5.QtGui import QGuiApplication, QPixmap ,QPen , QPainterPath
-from PyQt5.QtCore import Qt, QPoint, QRect, QPointF
-from PyQt5.QtGui import QPixmap, QPainter, QColor
+from PyQt5.QtGui import (
+    QGuiApplication, 
+    QPixmap,
+    QPen, 
+    QPainterPath, 
+    QPainter,
+    QColor
+)
+from PyQt5.QtCore import (
+    Qt, 
+    QPoint, 
+    QRect, 
+    QPointF
+)
 
 class Canvas(QFrame):
     """
@@ -179,24 +191,21 @@ class Canvas(QFrame):
             image_label.setPixmap(scaled_pixmap)
             image_label.setFixedSize(scaled_pixmap.size())
 
-            # --- Fix: Resize the container to fit both image and label ---
+            # Resize the container to fit both image and label
             container.adjustSize()
             container_width = container.sizeHint().width()
             container_height = container.sizeHint().height()
 
-            # Center the container based on its full size (image + label)
-            position = event.pos() - QPoint(container_width // 2, container_height // 2)
-            container.move(position)
-
-            # Set the logical position for the dropped object
-            logical_x = (position.x() - self.grid_offset.x()) / self.scaleFactor
-            logical_y = (position.y() - self.grid_offset.y()) / self.scaleFactor
+            # Determine logicak position ( Centered at drop ) so updateImageScaling can place the container
+            drop_pos = event.pos()
+            logical_x = (drop_pos.x() - container_width // 2 - self.grid_offset.x()) / self.scaleFactor
+            logical_y = (drop_pos.y() - container_height // 2 - self.grid_offset.y()) / self.scaleFactor
             logical_position = QPointF(logical_x, logical_y)
-
+            
             self.images[container] = {
                 "pixmap": original_pixmap,
                 "size": scaled_pixmap.size(),
-                "position": logical_position,  # <-- Use logical position here!
+                "position": logical_position,
                 "resizing_offset": QPoint(),
                 "resizing": False,
                 "resize_corner": None,
@@ -206,7 +215,9 @@ class Canvas(QFrame):
                 "text_label": text_label,
             }
 
+            self.updateImageScaling()
             container.show()
+            self.update()
 
     def resizeImageAtDropEvent(self, image_label, scale_factor):
         """
@@ -1055,7 +1066,6 @@ class Canvas(QFrame):
         How:
             - Calculates the angle between two points and draws a filled arrowhead at the end.
         """
-        import math
         angle = math.atan2(p2[1]-p1[1], p2[0]-p1[0])
         arrow_size = 12
         dx = arrow_size * math.cos(angle - math.pi/6)
@@ -1118,7 +1128,7 @@ class Canvas(QFrame):
         Returns:
             QPainterPath: The path object representing the connection line between the two units.
         """
-        from PyQt5.QtGui import QPainterPath
+       
         start = conn['start']
         end = conn['end']
         conn_type = conn.get('type', 'data')
@@ -1217,8 +1227,7 @@ class Canvas(QFrame):
         How:
             - Calculates the perpendicular distance from pt to the line segment and compares to threshold.
         """
-        from PyQt5.QtCore import QPoint
-        import math
+        
         x0, y0 = pt.x(), pt.y()
         x1, y1 = p1
         x2, y2 = p2
