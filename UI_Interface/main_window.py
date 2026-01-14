@@ -6,8 +6,8 @@ from PyQt5.QtWidgets import (
     QFrame,
     QApplication
 )
-from UI_Interface.image_palatte import Palette
-from UI_Interface.flow_canvas import Canvas
+from UI_Interface.draggable_icon_palatte import DraggableIconPalette
+from UI_Interface.process_flow_canvas import  ProcessFlowCanvas
 
 class ProcessFlowEditor(QMainWindow):
     """
@@ -25,9 +25,9 @@ class ProcessFlowEditor(QMainWindow):
     """
     def __init__(self):
         super().__init__()
-        self.initUI()
+        self.init_ui()
 
-    def initUI(self):
+    def init_ui(self):
         """
         Initializes the main window UI.
 
@@ -73,9 +73,9 @@ class ProcessFlowEditor(QMainWindow):
         self.setCentralWidget(central_widget)
 
         # Set up main layout (tool palette + canvas)
-        self.setupMainLayout(central_widget)
+        self.set_up_main_layout(central_widget)
 
-    def setupMainLayout(self, central_widget):
+    def set_up_main_layout(self, central_widget):
         """
         Sets up the main horizontal layout for the window.
 
@@ -91,8 +91,8 @@ class ProcessFlowEditor(QMainWindow):
         main_layout = QHBoxLayout()
 
         # Create tool palette (left) and canvas (right)
-        tool_palette = self.createToolPalette()
-        canvas = self.createCanvas()
+        tool_palette = self.draggable_icon_palette()
+        canvas = self.process_flow_canvas()
 
         # Add tool palette and canvas to main layout with stretch factor
         main_layout.addWidget(tool_palette, 1)  # Tool palette gets less space
@@ -101,7 +101,7 @@ class ProcessFlowEditor(QMainWindow):
         # Set main layout for central widget
         central_widget.setLayout(main_layout)
 
-    def createToolPalette(self):
+    def draggable_icon_palette(self):
         """
         Creates and returns the tool palette widget.
 
@@ -114,13 +114,13 @@ class ProcessFlowEditor(QMainWindow):
             - Applies a box frame and light gray background.
             - Returns the widget for layout.
         """
-        tool_palette = Palette()
-        tool_palette.setFrameShape(QFrame.Box)
-        tool_palette.setStyleSheet("background-color: lightgray; border-radius: 0px;")
-        tool_palette.show()
-        return tool_palette 
+        draggable_icon_palette = DraggableIconPalette()
+        draggable_icon_palette.setFrameShape(QFrame.Box)
+        draggable_icon_palette.setStyleSheet("background-color: lightgray; border-radius: 0px;")
+        draggable_icon_palette.show()
+        return draggable_icon_palette 
     
-    def createCanvas(self):
+    def process_flow_canvas(self):
         """
         Creates and returns the main drawing/interaction canvas.
 
@@ -129,14 +129,13 @@ class ProcessFlowEditor(QMainWindow):
             - Sets frame and background style.
 
         How:
-            - Creates a Canvas instance.
+            - Creates a Flow_Canvas instance.
             - Applies a box frame and light gray background.
             - Returns the widget for layout.
         """
-        canvas = Canvas()
+        process_flow_canvas = ProcessFlowCanvas()
         # Set frame properties for appearance
-        canvas.setFrameShape(QFrame.Box)
-        canvas.setStyleSheet("background-color: lightgray; border-radius: 0px;")
-        canvas.show()
-
-        return canvas
+        process_flow_canvas.setFrameShape(QFrame.Box)
+        process_flow_canvas.setStyleSheet("background-color: lightgray; border-radius: 0px;")
+        process_flow_canvas.show()
+        return process_flow_canvas
